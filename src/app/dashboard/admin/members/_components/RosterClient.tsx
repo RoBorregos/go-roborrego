@@ -31,6 +31,7 @@ export function RosterClient() {
     "ACTIVE" | "INACTIVE" | "ALUMNI" | undefined
   >(undefined);
   const [panel, setPanel] = useState<Panel>(null);
+  const [sortByWebId, setSortByWebId] = useState(false);
 
   const { data: members, isPending } = api.member.getRoster.useQuery({
     search: search || undefined,
@@ -65,6 +66,11 @@ export function RosterClient() {
     updateMember.mutate({ id, webId: value && parsed > 0 ? parsed : undefined });
   }
 
+  function handleClassYearChange(id: string, value: string) {
+    const parsed = parseInt(value, 10);
+    updateMember.mutate({ id, classYear: value && parsed > 1900 ? parsed : undefined });
+  }
+
   function handleExcludeChange(id: string, excluded: boolean) {
     updateMember.mutate({ id, excludeFromExport: excluded });
   }
@@ -73,6 +79,10 @@ export function RosterClient() {
     setPanel(null);
     void utils.member.getRoster.invalidate();
   }
+
+  const sortedMembers = sortByWebId && members
+    ? [...members].sort((a, b) => (a.webId ?? Infinity) - (b.webId ?? Infinity))
+    : (members ?? []);
 
   return (
     <div>
@@ -148,12 +158,20 @@ export function RosterClient() {
         <p className="text-sm text-gray-400">No members found.</p>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
-          <table className="w-full text-sm min-w-[940px]">
+          <table className="w-full text-sm min-w-255">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 text-left">
                 <th className="px-4 py-3 font-medium text-gray-600">Member</th>
                 <th className="px-4 py-3 font-medium text-gray-600">Sub-team</th>
-                <th className="px-4 py-3 font-medium text-gray-600">Web ID</th>
+                <th className="px-4 py-3 font-medium text-gray-600">Class</th>
+                <th className="px-4 py-3 font-medium text-gray-600">
+                  <button
+                    onClick={() => setSortByWebId((v) => !v)}
+                    className={`flex items-center gap-1 hover:text-gray-900 transition-colors ${sortByWebId ? "text-blue-600" : ""}`}
+                  >
+                    Web ID {sortByWebId ? "↑" : "↕"}
+                  </button>
+                </th>
                 <th className="px-4 py-3 font-medium text-gray-600">Role</th>
                 <th className="px-4 py-3 font-medium text-gray-600">Status</th>
                 <th className="px-4 py-3 font-medium text-gray-600">Attendance</th>
@@ -164,7 +182,7 @@ export function RosterClient() {
               </tr>
             </thead>
             <tbody>
-              {members.map((member) => (
+              {sortedMembers.map((member) => (
                 <MemberRow
                   key={member.id}
                   member={member}
@@ -172,6 +190,7 @@ export function RosterClient() {
                   onNameChange={handleNameChange}
                   onEmailChange={handleEmailChange}
                   onWebIdChange={handleWebIdChange}
+                  onClassYearChange={handleClassYearChange}
                   onExcludeChange={handleExcludeChange}
                   isSaving={updateMember.isPending}
                 />
@@ -190,6 +209,7 @@ function MemberRow({
   onNameChange,
   onEmailChange,
   onWebIdChange,
+  onClassYearChange,
   onExcludeChange,
   isSaving,
 }: {
@@ -198,6 +218,7 @@ function MemberRow({
   onNameChange: (id: string, value: string) => void;
   onEmailChange: (id: string, value: string) => void;
   onWebIdChange: (id: string, value: string) => void;
+  onClassYearChange: (id: string, value: string) => void;
   onExcludeChange: (id: string, excluded: boolean) => void;
   isSaving: boolean;
 }) {
@@ -205,6 +226,7 @@ function MemberRow({
   const [subTeamInput, setSubTeamInput] = useState(member.subTeam ?? "");
   const [emailInput, setEmailInput] = useState(member.email ?? "");
   const [webIdInput, setWebIdInput] = useState(member.webId !== null ? String(member.webId) : "");
+  const [classYearInput, setClassYearInput] = useState(member.classYear !== null ? String(member.classYear) : "");
 
   return (
     <tr className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
@@ -268,6 +290,24 @@ function MemberRow({
           }}
           placeholder="—"
           className="w-28 rounded border border-transparent hover:border-gray-300 focus:border-blue-400 px-1.5 py-0.5 text-xs focus:outline-none bg-transparent focus:bg-white"
+        />
+      </td>
+
+      {/* Class Year inline edit */}
+      <td className="px-4 py-3">
+        <input
+          type="number"
+          min={1900}
+          max={2100}
+          value={classYearInput}
+          onChange={(e) => setClassYearInput(e.target.value)}
+          onBlur={() => {
+            if (classYearInput !== (member.classYear !== null ? String(member.classYear) : "")) {
+              onClassYearChange(member.id, classYearInput);
+            }
+          }}
+          placeholder="—"
+          className="w-16 rounded border border-transparent hover:border-gray-300 focus:border-blue-400 px-1.5 py-0.5 text-xs focus:outline-none bg-transparent focus:bg-white"
         />
       </td>
 
