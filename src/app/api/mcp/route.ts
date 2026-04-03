@@ -187,6 +187,10 @@ const TOOLS = [
         semesters: { type: "number" },
         tags: { type: "string", description: "Comma-separated skill tags" },
         excludeFromExport: { type: "boolean" },
+        classYear: {
+          type: "number",
+          description: "Year the member joined the team (e.g. 2022)",
+        },
         webId: {
           type: "number",
           description: "Export order ID (unique positive integer)",
@@ -222,6 +226,10 @@ const TOOLS = [
         semesters: { type: "number" },
         tags: { type: "string", description: "Comma-separated skill tags" },
         excludeFromExport: { type: "boolean" },
+        classYear: {
+          type: "number",
+          description: "Year the member joined the team (e.g. 2022)",
+        },
         webId: {
           type: "number",
           description: "Export order ID (unique positive integer)",
@@ -673,6 +681,7 @@ async function callTool(
           semesters: args.semesters !== undefined ? Number(args.semesters) : undefined,
           tags: (args.tags as string) ?? undefined,
           excludeFromExport: (args.excludeFromExport as boolean) ?? undefined,
+          classYear: args.classYear !== undefined ? Number(args.classYear) : undefined,
           webId: args.webId !== undefined ? Number(args.webId) : undefined,
         },
         select: {
@@ -750,6 +759,7 @@ async function callTool(
           ...(args.excludeFromExport !== undefined && {
             excludeFromExport: args.excludeFromExport as boolean,
           }),
+          ...(args.classYear !== undefined && { classYear: Number(args.classYear) }),
           ...(args.webId !== undefined && { webId: Number(args.webId) }),
         },
         select: {

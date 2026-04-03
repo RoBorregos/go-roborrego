@@ -29,6 +29,7 @@ export function EditMemberForm({ member }: { member: Member }) {
     // Web export
     webId: member.webId !== null ? String(member.webId) : "",
     lastname: member.lastname ?? "",
+    classYear: member.classYear !== null ? String(member.classYear) : "",
     subtitle: member.subtitle ?? "",
     semesters: member.semesters !== null ? String(member.semesters) : "",
     tags: member.tags ?? "",
@@ -71,6 +72,7 @@ export function EditMemberForm({ member }: { member: Member }) {
       semesters: form.semesters ? parseInt(form.semesters, 10) : undefined,
       tags: form.tags || undefined,
       excludeFromExport: form.excludeFromExport,
+      classYear: form.classYear ? parseInt(form.classYear, 10) : undefined,
     });
   }
 
@@ -175,13 +177,23 @@ export function EditMemberForm({ member }: { member: Member }) {
 
         {/* Team */}
         <Section title="Team">
-          <Field
-            label="Sub-team / Competition"
-            name="subTeam"
-            value={form.subTeam}
-            onChange={handleChange}
-            placeholder="e.g. Home Service, RoboCup…"
-          />
+          <div className="grid grid-cols-2 gap-4">
+            <Field
+              label="Sub-team / Competition"
+              name="subTeam"
+              value={form.subTeam}
+              onChange={handleChange}
+              placeholder="e.g. Home Service, RoboCup…"
+            />
+            <Field
+              label="Class Year"
+              name="classYear"
+              value={form.classYear}
+              onChange={handleChange}
+              placeholder="e.g. 2022"
+              type="number"
+            />
+          </div>
           <Field
             label="Graduation Date"
             name="graduationDate"

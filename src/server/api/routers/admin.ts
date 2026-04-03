@@ -154,10 +154,10 @@ export const adminRouter = createTRPCRouter({
           subTeam: true,
           subtitle: true,
           status: true,
-          graduationDate: true,
           semesters: true,
           tags: true,
           webId: true,
+          classYear: true,
         },
       });
 
@@ -194,9 +194,7 @@ export const adminRouter = createTRPCRouter({
           status: m.status === "ACTIVE" ? "active" : "inactive",
           role: m.subTeam ?? "",
           subtitle: m.subtitle ?? "",
-          class: m.graduationDate
-            ? String(new Date(m.graduationDate).getFullYear())
-            : "",
+          class: m.classYear ? String(m.classYear) : "",
           semesters: m.semesters !== null ? String(m.semesters) : "",
           description: m.bio ?? "",
           github: m.githubUsername
@@ -213,7 +211,7 @@ export const adminRouter = createTRPCRouter({
           dryRun: true,
           memberCount: members.length,
           newIdAssignments: idAssignments.length,
-          preview: membersJson,
+          preview: { members: membersJson },
         };
       }
 
@@ -289,7 +287,7 @@ export const adminRouter = createTRPCRouter({
         path: "src/data/members.json",
         mode: "100644",
         type: "blob",
-        content: JSON.stringify({ members: membersJson }, null, 2),
+        content: JSON.stringify({ members: membersJson }, null, 4),
       });
 
       // 7. Create new tree

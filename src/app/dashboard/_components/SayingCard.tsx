@@ -32,7 +32,6 @@ function YearPicker({
 
 const SERIOUS_EMOJIS = ["🏆", "🧠", "🎯", "🎓", "🏅", "🤝", "💡", "🤖", "🦾"];
 const FUN_EMOJIS = [
-  "🔧",
   "🚀",
   "🧀",
   "🧐",
@@ -239,7 +238,7 @@ export function SayingCard({ isMember }: { isMember: boolean }) {
                       submitMutation.mutate({
                         text: text.trim(),
                         explanation: explanation.trim() || undefined,
-                        date: new Date(`${date}-01-01`),
+                        date: new Date(`${date}-06-01`),
                         isSerious,
                       });
                     }}

@@ -127,6 +127,7 @@ model User {
     semesters         Int?
     tags              String?
     excludeFromExport Boolean  @default(false)
+    classYear         Int?
     // Onboarding
     onboardingDismissed Boolean @default(false)
     // Microsoft integration (tokens never exposed to client)

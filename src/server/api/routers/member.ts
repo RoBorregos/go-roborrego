@@ -83,6 +83,7 @@ export const memberRouter = createTRPCRouter({
           semesters: true,
           tags: true,
           excludeFromExport: true,
+          classYear: true,
         },
       });
       if (!user) throw new TRPCError({ code: "NOT_FOUND" });
@@ -181,6 +182,7 @@ export const memberRouter = createTRPCRouter({
         semesters: z.number().int().min(0).optional(),
         tags: z.string().optional(),
         excludeFromExport: z.boolean().optional(),
+        classYear: z.number().int().min(1900).max(2100).optional(),
       }),
     )
     .mutation(({ ctx, input }) => {

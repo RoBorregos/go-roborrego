@@ -25,11 +25,13 @@ export function AdminDashboardClient() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
-        <p className="text-sm text-gray-500 mt-1">Platform overview and pending actions</p>
+        <p className="mt-1 text-sm text-gray-500">
+          Platform overview and pending actions
+        </p>
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
           label="Active Members"
           value={data.members.active}
@@ -61,7 +63,7 @@ export function AdminDashboardClient() {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Pending completions quick-review */}
         <Section
           title="Pending Completions"
@@ -76,15 +78,22 @@ export function AdminDashboardClient() {
               <PendingCompletionRow
                 key={c.id}
                 completion={c}
-                onApprove={() => reviewCompletion.mutate({ id: c.id, status: "APPROVED" })}
-                onReject={() => reviewCompletion.mutate({ id: c.id, status: "REJECTED" })}
+                onApprove={() =>
+                  reviewCompletion.mutate({ id: c.id, status: "APPROVED" })
+                }
+                onReject={() =>
+                  reviewCompletion.mutate({ id: c.id, status: "REJECTED" })
+                }
                 isSaving={reviewCompletion.isPending}
               />
             ))}
             {data.pendingCompletions > 5 && (
               <p className="px-4 py-2 text-xs text-gray-400">
                 +{data.pendingCompletions - 5} more —{" "}
-                <Link href="/dashboard/workplan" className="text-blue-600 hover:underline">
+                <Link
+                  href="/dashboard/workplan"
+                  className="text-blue-600 hover:underline"
+                >
                   review all
                 </Link>
               </p>
@@ -103,9 +112,14 @@ export function AdminDashboardClient() {
         >
           <div className="divide-y divide-gray-100">
             {data.upcomingMeetings.map((m) => (
-              <div key={m.id} className="px-4 py-3 flex items-center justify-between gap-3">
+              <div
+                key={m.id}
+                className="flex items-center justify-between gap-3 px-4 py-3"
+              >
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{m.title}</p>
+                  <p className="truncate text-sm font-medium text-gray-900">
+                    {m.title}
+                  </p>
                   <p className="text-xs text-gray-400">
                     {new Date(m.startTime).toLocaleDateString(undefined, {
                       weekday: "short",
@@ -120,7 +134,7 @@ export function AdminDashboardClient() {
                     · {m.duration} min
                   </p>
                 </div>
-                <span className="text-xs text-gray-400 shrink-0">
+                <span className="shrink-0 text-xs text-gray-400">
                   {m._count.attendances} checked in
                 </span>
               </div>
@@ -135,15 +149,43 @@ export function AdminDashboardClient() {
           linkLabel="Manage roster"
           empty={false}
         >
-          <div className="px-4 py-3 space-y-3">
-            <RosterBar label="Active" value={data.members.active} color="bg-green-500" total={data.members.active + data.members.inactive + data.members.alumni} />
-            <RosterBar label="Inactive" value={data.members.inactive} color="bg-gray-300" total={data.members.active + data.members.inactive + data.members.alumni} />
-            <RosterBar label="Alumni" value={data.members.alumni} color="bg-purple-300" total={data.members.active + data.members.inactive + data.members.alumni} />
+          <div className="space-y-3 px-4 py-3">
+            <RosterBar
+              label="Active"
+              value={data.members.active}
+              color="bg-green-500"
+              total={
+                data.members.active +
+                data.members.inactive +
+                data.members.alumni
+              }
+            />
+            <RosterBar
+              label="Inactive"
+              value={data.members.inactive}
+              color="bg-gray-300"
+              total={
+                data.members.active +
+                data.members.inactive +
+                data.members.alumni
+              }
+            />
+            <RosterBar
+              label="Alumni"
+              value={data.members.alumni}
+              color="bg-purple-300"
+              total={
+                data.members.active +
+                data.members.inactive +
+                data.members.alumni
+              }
+            />
 
             {data.members.neverLoggedIn > 0 && (
-              <div className="pt-2 mt-2 border-t border-gray-100 flex items-center justify-between">
-                <p className="text-xs text-amber-600 font-medium">
-                  {data.members.neverLoggedIn} active member{data.members.neverLoggedIn !== 1 ? "s" : ""} never logged in
+              <div className="mt-2 flex items-center justify-between border-t border-gray-100 pt-2">
+                <p className="text-xs font-medium text-amber-600">
+                  {data.members.neverLoggedIn} active member
+                  {data.members.neverLoggedIn !== 1 ? "s" : ""} never logged in
                 </p>
                 <Link
                   href="/dashboard/admin/members?status=ACTIVE"
@@ -158,19 +200,37 @@ export function AdminDashboardClient() {
 
         {/* Quick links */}
         <Section title="Quick Links" empty={false}>
-          <div className="px-4 py-3 grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-2 px-4 py-3">
             {[
-              { label: "Roster", href: "/dashboard/admin/members", desc: "Manage members" },
-              { label: "Attendance", href: "/dashboard/attendance", desc: "Meetings & check-ins" },
-              { label: "Work Plan", href: "/dashboard/workplan", desc: "Review completions" },
-              { label: "Projects", href: "/dashboard/projects", desc: "All active projects" },
+              {
+                label: "Roster",
+                href: "/dashboard/admin/members",
+                desc: "Manage members",
+              },
+              {
+                label: "Attendance",
+                href: "/dashboard/attendance",
+                desc: "Meetings & check-ins",
+              },
+              {
+                label: "Work Plan",
+                href: "/dashboard/workplan",
+                desc: "Review completions",
+              },
+              {
+                label: "Projects",
+                href: "/dashboard/projects",
+                desc: "All active projects",
+              },
             ].map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
-                className="rounded-lg border border-gray-200 px-3 py-2.5 hover:border-blue-200 hover:bg-blue-50 transition-colors"
+                className="rounded-lg border border-gray-200 px-3 py-2.5 transition-colors hover:border-blue-200 hover:bg-blue-50"
               >
-                <p className="text-sm font-medium text-gray-900">{link.label}</p>
+                <p className="text-sm font-medium text-gray-900">
+                  {link.label}
+                </p>
                 <p className="text-xs text-gray-400">{link.desc}</p>
               </Link>
             ))}
@@ -188,7 +248,14 @@ export function AdminDashboardClient() {
 }
 
 function WebExportPanel() {
-  const [result, setResult] = useState<{ prUrl?: string; prNumber?: number; memberCount?: number; imagesUploaded?: number; newIdAssignments?: number } | null>(null);
+  const [result, setResult] = useState<{
+    prUrl?: string;
+    prNumber?: number;
+    memberCount?: number;
+    imagesUploaded?: number;
+    newIdAssignments?: number;
+    preview?: Record<string, unknown>;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const exportMutation = api.admin.exportToWebRepo.useMutation({
@@ -201,8 +268,17 @@ function WebExportPanel() {
   const dryRunMutation = api.admin.exportToWebRepo.useMutation({
     onSuccess: (data) => {
       if (data.dryRun) {
-        const preview = data as { dryRun: true; memberCount: number; newIdAssignments: number };
-        setResult({ memberCount: preview.memberCount, newIdAssignments: preview.newIdAssignments });
+        const preview = data as {
+          dryRun: true;
+          memberCount: number;
+          newIdAssignments: number;
+          preview: Record<string, unknown>;
+        };
+        setResult({
+          memberCount: preview.memberCount,
+          newIdAssignments: preview.newIdAssignments,
+          preview: preview.preview,
+        });
       }
     },
     onError: (e) => setError(e.message),
@@ -211,53 +287,106 @@ function WebExportPanel() {
   const isBusy = exportMutation.isPending || dryRunMutation.isPending;
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden lg:col-span-2">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-        <h2 className="text-sm font-semibold text-gray-900">Export Members to Website</h2>
+    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm lg:col-span-2">
+      <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+        <h2 className="text-sm font-semibold text-gray-900">
+          Export Members to Website
+        </h2>
         <span className="text-xs text-gray-400">roborregos-web</span>
       </div>
-      <div className="px-4 py-4 space-y-3">
+      <div className="space-y-3 px-4 py-4">
         <p className="text-xs text-gray-500">
-          Creates a pull request on <span className="font-mono">RoBorregos/roborregos-web</span> with
-          updated <span className="font-mono">members.json</span> and member images.
-          Members marked &ldquo;Exclude from export&rdquo; are skipped. Web IDs are auto-assigned if missing.
+          Creates a pull request on{" "}
+          <span className="font-mono">RoBorregos/roborregos-web</span> with
+          updated <span className="font-mono">members.json</span> and member
+          images. Members marked &ldquo;Exclude from export&rdquo; are skipped.
+          Web IDs are auto-assigned if missing.
         </p>
 
         {error && (
-          <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+          <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">
+            {error}
+          </p>
         )}
 
         {result?.prUrl && (
-          <div className="text-xs bg-green-50 border border-green-200 rounded-lg px-3 py-2 space-y-1">
-            <p className="font-medium text-green-800">PR created successfully</p>
-            <p className="text-green-700">
-              {result.memberCount} members · {result.imagesUploaded} images · {result.newIdAssignments} new IDs assigned
+          <div className="space-y-1 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs">
+            <p className="font-medium text-green-800">
+              PR created successfully
             </p>
-            <a href={result.prUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline font-mono">
+            <p className="text-green-700">
+              {result.memberCount} members · {result.imagesUploaded} images ·{" "}
+              {result.newIdAssignments} new IDs assigned
+            </p>
+            <a
+              href={result.prUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="font-mono text-blue-600 hover:underline"
+            >
               PR #{result.prNumber}
             </a>
           </div>
         )}
 
         {result && !result.prUrl && (
-          <div className="text-xs bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
-            <p className="font-medium text-blue-800">Dry run complete</p>
-            <p className="text-blue-700">{result.memberCount} members to export · {result.newIdAssignments} would get new IDs</p>
+          <div className="space-y-2">
+            <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs">
+              <p className="font-medium text-blue-800">Dry run complete</p>
+              <p className="text-blue-700">
+                {result.memberCount} members to export ·{" "}
+                {result.newIdAssignments} would get new IDs
+              </p>
+            </div>
+            {result.preview && (
+              <div className="space-y-1.5">
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => {
+                      const blob = new Blob(
+                        [JSON.stringify(result.preview, null, 4)],
+                        { type: "application/json" },
+                      );
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = "members.json";
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }}
+                    className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-600 transition-colors hover:bg-gray-50"
+                  >
+                    ↓ Download members.json
+                  </button>
+                </div>
+                <pre className="max-h-72 overflow-auto rounded-lg bg-gray-900 px-3 py-3 text-xs leading-relaxed text-gray-100">
+                  {JSON.stringify(result.preview, null, 4)}
+                </pre>
+              </div>
+            )}
           </div>
         )}
 
         <div className="flex gap-2">
           <button
-            onClick={() => { setError(null); setResult(null); dryRunMutation.mutate({ dryRun: true }); }}
+            onClick={() => {
+              setError(null);
+              setResult(null);
+              dryRunMutation.mutate({ dryRun: true });
+            }}
             disabled={isBusy}
-            className="px-3 py-1.5 text-xs border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
           >
             {dryRunMutation.isPending ? "Running…" : "Dry Run"}
           </button>
           <button
-            onClick={() => { setError(null); setResult(null); exportMutation.mutate({ dryRun: false }); }}
+            onClick={() => {
+              setError(null);
+              setResult(null);
+              exportMutation.mutate({ dryRun: false });
+            }}
             disabled={isBusy}
-            className="px-3 py-1.5 text-xs bg-[#1a2744] text-white rounded-lg hover:bg-[#243660] disabled:opacity-50 transition-colors"
+            className="rounded-lg bg-[#1a2744] px-3 py-1.5 text-xs text-white transition-colors hover:bg-[#243660] disabled:opacity-50"
           >
             {exportMutation.isPending ? "Creating PR…" : "Create PR"}
           </button>
@@ -295,16 +424,16 @@ function StatCard({
   return (
     <Link
       href={href}
-      className={`relative rounded-xl border p-5 shadow-sm hover:shadow-md transition-all ${
+      className={`relative rounded-xl border p-5 shadow-sm transition-all hover:shadow-md ${
         urgent ? "border-amber-200 bg-amber-50" : "border-gray-200 bg-white"
       }`}
     >
       {urgent && (
-        <span className="absolute top-3 right-3 w-2 h-2 rounded-full bg-amber-400" />
+        <span className="absolute top-3 right-3 h-2 w-2 rounded-full bg-amber-400" />
       )}
       <p className={`text-3xl font-bold ${colors[color]}`}>{value}</p>
-      <p className="text-sm font-medium text-gray-900 mt-1">{label}</p>
-      <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
+      <p className="mt-1 text-sm font-medium text-gray-900">{label}</p>
+      <p className="mt-0.5 text-xs text-gray-400">{sub}</p>
     </Link>
   );
 }
@@ -327,24 +456,29 @@ function Section({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+      <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-semibold text-gray-900">{title}</h2>
           {count !== undefined && count > 0 && (
-            <span className="text-xs bg-amber-100 text-amber-700 font-medium px-1.5 py-0.5 rounded-full">
+            <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700">
               {count}
             </span>
           )}
         </div>
         {linkHref && linkLabel && (
-          <Link href={linkHref} className="text-xs text-blue-600 hover:underline">
+          <Link
+            href={linkHref}
+            className="text-xs text-blue-600 hover:underline"
+          >
             {linkLabel}
           </Link>
         )}
       </div>
       {empty ? (
-        <p className="px-4 py-6 text-sm text-gray-400 text-center">{emptyText}</p>
+        <p className="px-4 py-6 text-center text-sm text-gray-400">
+          {emptyText}
+        </p>
       ) : (
         children
       )}
@@ -367,34 +501,40 @@ function PendingCompletionRow({
     <div className="flex items-center gap-3 px-4 py-3">
       {completion.user.image ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={completion.user.image} alt="" className="w-7 h-7 rounded-full shrink-0" />
+        <img
+          src={completion.user.image}
+          alt=""
+          className="h-7 w-7 shrink-0 rounded-full"
+        />
       ) : (
-        <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-          <span className="text-blue-600 text-xs font-semibold">
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100">
+          <span className="text-xs font-semibold text-blue-600">
             {completion.user.name?.charAt(0) ?? "?"}
           </span>
         </div>
       )}
-      <div className="flex-1 min-w-0">
-        <p className="text-sm text-gray-900 truncate">
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm text-gray-900">
           <span className="font-medium">{completion.user.name}</span>
           {" · "}
           <span className="text-gray-500">{completion.activity.name}</span>
         </p>
-        <p className="text-xs text-gray-400">{completion.activity.points} pts</p>
+        <p className="text-xs text-gray-400">
+          {completion.activity.points} pts
+        </p>
       </div>
-      <div className="flex gap-1 shrink-0">
+      <div className="flex shrink-0 gap-1">
         <button
           onClick={onApprove}
           disabled={isSaving}
-          className="text-xs px-2 py-1 bg-green-50 text-green-700 border border-green-200 rounded hover:bg-green-100 disabled:opacity-50 transition-colors"
+          className="rounded border border-green-200 bg-green-50 px-2 py-1 text-xs text-green-700 transition-colors hover:bg-green-100 disabled:opacity-50"
         >
           Approve
         </button>
         <button
           onClick={onReject}
           disabled={isSaving}
-          className="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 rounded hover:bg-red-100 disabled:opacity-50 transition-colors"
+          className="rounded border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-600 transition-colors hover:bg-red-100 disabled:opacity-50"
         >
           Reject
         </button>
@@ -407,9 +547,18 @@ function SayingsPanel() {
   const utils = api.useUtils();
   const { data: sayings = [], isLoading } = api.saying.listAll.useQuery();
 
-  const review = api.saying.review.useMutation({ onSuccess: () => void utils.saying.listAll.invalidate() });
-  const setVisible = api.saying.setVisible.useMutation({ onSuccess: () => void utils.saying.listAll.invalidate() });
-  const update = api.saying.update.useMutation({ onSuccess: () => { void utils.saying.listAll.invalidate(); setEditingId(null); } });
+  const review = api.saying.review.useMutation({
+    onSuccess: () => void utils.saying.listAll.invalidate(),
+  });
+  const setVisible = api.saying.setVisible.useMutation({
+    onSuccess: () => void utils.saying.listAll.invalidate(),
+  });
+  const update = api.saying.update.useMutation({
+    onSuccess: () => {
+      void utils.saying.listAll.invalidate();
+      setEditingId(null);
+    },
+  });
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
@@ -417,7 +566,7 @@ function SayingsPanel() {
   const [editDate, setEditDate] = useState("");
   const [editIsSerious, setEditIsSerious] = useState(false);
 
-  function startEdit(s: typeof sayings[0]) {
+  function startEdit(s: (typeof sayings)[0]) {
     setEditingId(s.id);
     setEditText(s.text);
     setEditExplanation(s.explanation ?? "");
@@ -429,12 +578,12 @@ function SayingsPanel() {
   const rest = sayings.filter((s) => s.status !== "PENDING");
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden lg:col-span-2">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm lg:col-span-2">
+      <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-semibold text-gray-900">Sayings</h2>
           {pending.length > 0 && (
-            <span className="text-xs bg-amber-100 text-amber-700 font-medium px-1.5 py-0.5 rounded-full">
+            <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700">
               {pending.length} pending
             </span>
           )}
@@ -444,25 +593,27 @@ function SayingsPanel() {
       {isLoading ? (
         <p className="px-4 py-4 text-sm text-gray-400">Loading…</p>
       ) : sayings.length === 0 ? (
-        <p className="px-4 py-6 text-sm text-gray-400 text-center">No sayings submitted yet.</p>
+        <p className="px-4 py-6 text-center text-sm text-gray-400">
+          No sayings submitted yet.
+        </p>
       ) : (
         <div className="divide-y divide-gray-100">
           {[...pending, ...rest].map((s) => (
-            <div key={s.id} className="px-4 py-3 space-y-2">
+            <div key={s.id} className="space-y-2 px-4 py-3">
               {editingId === s.id ? (
                 <div className="space-y-2">
                   <textarea
                     value={editText}
                     onChange={(e) => setEditText(e.target.value)}
                     rows={2}
-                    className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                    className="w-full resize-none rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   />
                   <textarea
                     value={editExplanation}
                     onChange={(e) => setEditExplanation(e.target.value)}
                     rows={2}
                     placeholder="Explanation (optional)"
-                    className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                    className="w-full resize-none rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   />
                   <div className="flex items-center gap-3">
                     <input
@@ -471,7 +622,7 @@ function SayingsPanel() {
                       max={new Date().getFullYear()}
                       value={editDate}
                       onChange={(e) => setEditDate(e.target.value)}
-                      className="w-24 rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-24 rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
                     />
                     <button
                       type="button"
@@ -483,15 +634,25 @@ function SayingsPanel() {
                   </div>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => update.mutate({ id: s.id, text: editText.trim(), explanation: editExplanation.trim() || null, date: editDate ? new Date(`${editDate}-01-01`) : undefined, isSerious: editIsSerious })}
+                      onClick={() =>
+                        update.mutate({
+                          id: s.id,
+                          text: editText.trim(),
+                          explanation: editExplanation.trim() || null,
+                          date: editDate
+                            ? new Date(`${editDate}-06-01`)
+                            : undefined,
+                          isSerious: editIsSerious,
+                        })
+                      }
                       disabled={update.isPending || !editText.trim()}
-                      className="text-xs px-3 py-1.5 rounded-lg bg-[#1a2744] text-white hover:bg-[#243660] disabled:opacity-50 transition-colors"
+                      className="rounded-lg bg-[#1a2744] px-3 py-1.5 text-xs text-white transition-colors hover:bg-[#243660] disabled:opacity-50"
                     >
                       Save
                     </button>
                     <button
                       onClick={() => setEditingId(null)}
-                      className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                      className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-600 transition-colors hover:bg-gray-50"
                     >
                       Cancel
                     </button>
@@ -499,30 +660,41 @@ function SayingsPanel() {
                 </div>
               ) : (
                 <div className="flex items-start gap-3">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-900">&ldquo;{s.text}&rdquo;</p>
-                    {s.explanation && <p className="text-xs text-gray-500 mt-0.5">{s.explanation}</p>}
-                    <p className="text-xs text-gray-400 mt-0.5">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-gray-900">
+                      &ldquo;{s.text}&rdquo;
+                    </p>
+                    {s.explanation && (
+                      <p className="mt-0.5 text-xs text-gray-500">
+                        {s.explanation}
+                      </p>
+                    )}
+                    <p className="mt-0.5 text-xs text-gray-400">
                       {new Date(s.date).getFullYear()}
                       {" · by "}
                       {s.submitter.name}
-                      {s.status !== "PENDING" && ` · ${s.status === "APPROVED" ? (s.isVisible ? "visible" : "hidden") : "rejected"}`}
+                      {s.status !== "PENDING" &&
+                        ` · ${s.status === "APPROVED" ? (s.isVisible ? "visible" : "hidden") : "rejected"}`}
                     </p>
                   </div>
-                  <div className="flex gap-1 shrink-0 flex-wrap justify-end">
+                  <div className="flex shrink-0 flex-wrap justify-end gap-1">
                     {s.status === "PENDING" && (
                       <>
                         <button
-                          onClick={() => review.mutate({ id: s.id, status: "APPROVED" })}
+                          onClick={() =>
+                            review.mutate({ id: s.id, status: "APPROVED" })
+                          }
                           disabled={review.isPending}
-                          className="text-xs px-2 py-1 bg-green-50 text-green-700 border border-green-200 rounded hover:bg-green-100 disabled:opacity-50 transition-colors"
+                          className="rounded border border-green-200 bg-green-50 px-2 py-1 text-xs text-green-700 transition-colors hover:bg-green-100 disabled:opacity-50"
                         >
                           Approve
                         </button>
                         <button
-                          onClick={() => review.mutate({ id: s.id, status: "REJECTED" })}
+                          onClick={() =>
+                            review.mutate({ id: s.id, status: "REJECTED" })
+                          }
                           disabled={review.isPending}
-                          className="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 rounded hover:bg-red-100 disabled:opacity-50 transition-colors"
+                          className="rounded border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-600 transition-colors hover:bg-red-100 disabled:opacity-50"
                         >
                           Reject
                         </button>
@@ -530,16 +702,21 @@ function SayingsPanel() {
                     )}
                     {s.status === "APPROVED" && (
                       <button
-                        onClick={() => setVisible.mutate({ id: s.id, isVisible: !s.isVisible })}
+                        onClick={() =>
+                          setVisible.mutate({
+                            id: s.id,
+                            isVisible: !s.isVisible,
+                          })
+                        }
                         disabled={setVisible.isPending}
-                        className="text-xs px-2 py-1 border border-gray-200 text-gray-600 rounded hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                        className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50"
                       >
                         {s.isVisible ? "Hide" : "Show"}
                       </button>
                     )}
                     <button
                       onClick={() => startEdit(s)}
-                      className="text-xs px-2 py-1 border border-gray-200 text-gray-600 rounded hover:bg-gray-50 transition-colors"
+                      className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 transition-colors hover:bg-gray-50"
                     >
                       Edit
                     </button>
@@ -568,14 +745,17 @@ function RosterBar({
   const pct = total > 0 ? Math.round((value / total) * 100) : 0;
   return (
     <div>
-      <div className="flex justify-between text-xs mb-1">
+      <div className="mb-1 flex justify-between text-xs">
         <span className="text-gray-600">{label}</span>
         <span className="text-gray-400">
           {value} ({pct}%)
         </span>
       </div>
-      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-        <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
+      <div className="h-1.5 overflow-hidden rounded-full bg-gray-100">
+        <div
+          className={`h-full rounded-full ${color}`}
+          style={{ width: `${pct}%` }}
+        />
       </div>
     </div>
   );
