@@ -44,7 +44,7 @@ export function UserMenu({
           <img
             src={image}
             alt={name ?? ""}
-            className="w-8 h-8 rounded-full flex-shrink-0"
+            className="w-8 h-8 rounded-full flex-shrink-0 object-cover"
           />
         ) : (
           <div className="w-8 h-8 rounded-full bg-blue-400 flex items-center justify-center flex-shrink-0">

@@ -35,7 +35,7 @@ export default async function MemberProfilePage({
             <img
               src={member.image}
               alt={member.name ?? ""}
-              className="w-16 h-16 rounded-full border-2 border-white/30"
+              className="w-16 h-16 rounded-full border-2 border-white/30 object-cover"
             />
           ) : (
             <div className="w-16 h-16 rounded-full bg-blue-400 flex items-center justify-center">
