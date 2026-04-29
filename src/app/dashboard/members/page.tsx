@@ -103,7 +103,7 @@ export default function MembersPage() {
                 <img
                   src={member.image}
                   alt={member.name ?? ""}
-                  className="w-10 h-10 rounded-full flex-shrink-0"
+                  className="w-10 h-10 rounded-full flex-shrink-0 object-cover"
                 />
               ) : (
                 <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
