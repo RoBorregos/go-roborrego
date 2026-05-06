@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { api } from "~/trpc/react";
@@ -27,9 +27,13 @@ export default function EditProfilePage() {
     birthday: "",
   });
 
-  // Populate form once data loads
+  // Only seed the form the first time data arrives. Subsequent background
+  // re-fetches update `me` (new object reference) which would otherwise
+  // re-run this effect and wipe any unsaved edits.
+  const formInitialized = useRef(false);
   useEffect(() => {
-    if (me) {
+    if (me && !formInitialized.current) {
+      formInitialized.current = true;
       setForm({
         name: me.name ?? "",
         phone: me.phone ?? "",
