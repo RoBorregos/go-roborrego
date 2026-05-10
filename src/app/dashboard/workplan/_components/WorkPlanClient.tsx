@@ -9,7 +9,11 @@ import { AdminReviewTab } from "./AdminReviewTab";
 import { AdminSemestersTab } from "./AdminSemestersTab";
 import { LeaderboardTab } from "./LeaderboardTab";
 
-type Tab = "activities" | "leaderboard" | "manage" | "review" | "semesters";
+const VALID_TABS = ["activities", "leaderboard", "manage", "review", "semesters"] as const;
+type Tab = (typeof VALID_TABS)[number];
+
+const STORAGE_TAB = "workplan_tab";
+const STORAGE_SEMESTER = "workplan_semester";
 
 export function WorkPlanClient({
   isAdmin,
@@ -21,13 +25,29 @@ export function WorkPlanClient({
   const { data: semesters } = api.workPlan.getSemesters.useQuery();
   const { data: activeSemester } = api.workPlan.getActiveSemester.useQuery();
 
-  const [semesterId, setSemesterId] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("activities");
+  const [tab, setTab] = useState<Tab>(() => {
+    const saved = sessionStorage.getItem(STORAGE_TAB);
+    return saved && VALID_TABS.includes(saved as Tab) ? (saved as Tab) : "activities";
+  });
+  const [semesterId, setSemesterId] = useState<string | null>(
+    () => sessionStorage.getItem(STORAGE_SEMESTER),
+  );
 
-  // Default to active semester once loaded
+  const handleTabChange = (newTab: Tab) => {
+    setTab(newTab);
+    sessionStorage.setItem(STORAGE_TAB, newTab);
+  };
+
+  const handleSemesterChange = (newSemester: string) => {
+    setSemesterId(newSemester);
+    sessionStorage.setItem(STORAGE_SEMESTER, newSemester);
+  };
+
+  // Default to active semester if none saved
   useEffect(() => {
     if (activeSemester && semesterId === null) {
       setSemesterId(activeSemester.id);
+      sessionStorage.setItem(STORAGE_SEMESTER, activeSemester.id);
     }
   }, [activeSemester, semesterId]);
 
@@ -53,7 +73,7 @@ export function WorkPlanClient({
         {semesters && semesters.length > 0 ? (
           <select
             value={semesterId ?? ""}
-            onChange={(e) => setSemesterId(e.target.value)}
+            onChange={(e) => handleSemesterChange(e.target.value)}
             className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             {semesters.map((s) => (
@@ -76,7 +96,7 @@ export function WorkPlanClient({
       {/* Tabs */}
       <div className="flex flex-wrap gap-x-6 border-b border-gray-200 mb-6">
         {memberTabs.map((t) => (
-          <TabBtn key={t.key} active={tab === t.key} onClick={() => setTab(t.key)}>
+          <TabBtn key={t.key} active={tab === t.key} onClick={() => handleTabChange(t.key)}>
             {t.label}
           </TabBtn>
         ))}
@@ -84,7 +104,7 @@ export function WorkPlanClient({
           <>
             <span className="border-l border-gray-200 mx-1" />
             {adminTabs.map((t) => (
-              <TabBtn key={t.key} active={tab === t.key} onClick={() => setTab(t.key)}>
+              <TabBtn key={t.key} active={tab === t.key} onClick={() => handleTabChange(t.key)}>
                 {t.label}
               </TabBtn>
             ))}

@@ -9,20 +9,37 @@ import { CompletionBadge } from "../_components/WorkPlanClient";
 export function MemberProgressClient({
   memberId,
   isAdmin,
+  backHref,
 }: {
   memberId: string;
   isAdmin: boolean;
+  backHref: string;
 }) {
   const utils = api.useUtils();
   const { data: member } = api.member.getById.useQuery({ id: memberId });
   const { data: semesters } = api.workPlan.getSemesters.useQuery();
   const { data: activeSemester } = api.workPlan.getActiveSemester.useQuery();
 
-  const [semesterId, setSemesterId] = useState<string | null>(null);
+  const storageKey = `workplan_member_semester_${memberId}`;
+
+  const [semesterId, setSemesterId] = useState<string | null>(
+    () => sessionStorage.getItem(storageKey),
+  );
+  const [search, setSearch] = useState("");
+  const [filterInterested, setFilterInterested] = useState(false);
+  const [filterDone, setFilterDone] = useState(false);
+
+  const handleSemesterChange = (id: string) => {
+    setSemesterId(id);
+    sessionStorage.setItem(storageKey, id);
+  };
 
   useEffect(() => {
-    if (activeSemester && semesterId === null) setSemesterId(activeSemester.id);
-  }, [activeSemester, semesterId]);
+    if (activeSemester && semesterId === null) {
+      setSemesterId(activeSemester.id);
+      sessionStorage.setItem(storageKey, activeSemester.id);
+    }
+  }, [activeSemester, semesterId, storageKey]);
 
   const { data: summary } = api.workPlan.getMemberSummary.useQuery(
     { semesterId: semesterId!, userId: memberId },
@@ -49,18 +66,31 @@ export function MemberProgressClient({
     },
   });
 
-  const mandatory = activities?.filter((a) => a.isMandatory) ?? [];
-  const optional = activities?.filter((a) => !a.isMandatory) ?? [];
+  const filtered = (activities ?? []).filter((a) => {
+    const q = search.trim().toLowerCase();
+    if (q && !a.name.toLowerCase().includes(q) && !a.description.toLowerCase().includes(q)) {
+      return false;
+    }
+    if (filterInterested || filterDone) {
+      const matchesInterest = filterInterested && a.isInterested;
+      const matchesDone = filterDone && a.completion?.status === "APPROVED";
+      if (!matchesInterest && !matchesDone) return false;
+    }
+    return true;
+  });
+
+  const mandatory = filtered.filter((a) => a.isMandatory);
+  const optional = filtered.filter((a) => !a.isMandatory);
 
   return (
     <div className="max-w-3xl">
       {/* Back + header */}
       <div className="mb-6">
         <Link
-          href="/dashboard/workplan"
+          href={backHref}
           className="text-xs text-gray-400 hover:text-gray-600 mb-2 inline-block"
         >
-          ← Work Plan
+          ← {backHref.includes("members") ? "Roster" : "Work Plan"}
         </Link>
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
@@ -84,7 +114,7 @@ export function MemberProgressClient({
           {semesters && semesters.length > 0 && (
             <select
               value={semesterId ?? ""}
-              onChange={(e) => setSemesterId(e.target.value)}
+              onChange={(e) => handleSemesterChange(e.target.value)}
               className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               {semesters.map((s) => (
@@ -115,6 +145,39 @@ export function MemberProgressClient({
         </div>
       )}
 
+      {/* Search + filters */}
+      {activities && activities.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          <input
+            type="search"
+            placeholder="Search activities…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="flex-1 min-w-[180px] rounded-lg border border-gray-300 px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button
+            onClick={() => setFilterInterested((v) => !v)}
+            className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+              filterInterested
+                ? "bg-blue-50 text-blue-700 border-blue-300"
+                : "bg-white text-gray-500 border-gray-300 hover:bg-gray-50"
+            }`}
+          >
+            ★ Interested
+          </button>
+          <button
+            onClick={() => setFilterDone((v) => !v)}
+            className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+              filterDone
+                ? "bg-green-50 text-green-700 border-green-300"
+                : "bg-white text-gray-500 border-gray-300 hover:bg-gray-50"
+            }`}
+          >
+            ✓ Done
+          </button>
+        </div>
+      )}
+
       {/* Activities */}
       {!semesterId ? (
         <p className="text-sm text-gray-400">No active semester.</p>
@@ -122,6 +185,8 @@ export function MemberProgressClient({
         <p className="text-sm text-gray-400">Loading…</p>
       ) : !activities?.length ? (
         <p className="text-sm text-gray-400">No activities for this semester.</p>
+      ) : !filtered.length ? (
+        <p className="text-sm text-gray-400">No activities match the current filters.</p>
       ) : (
         <div className="space-y-6">
           {mandatory.length > 0 && (

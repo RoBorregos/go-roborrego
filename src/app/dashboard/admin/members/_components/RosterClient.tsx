@@ -29,9 +29,9 @@ export function RosterClient() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<
     "ACTIVE" | "INACTIVE" | "ALUMNI" | undefined
-  >(undefined);
+  >("ACTIVE");
   const [panel, setPanel] = useState<Panel>(null);
-  const [sortByWebId, setSortByWebId] = useState(false);
+  const [sortByWebId, setSortByWebId] = useState(true);
 
   const { data: members, isPending } = api.member.getRoster.useQuery({
     search: search || undefined,
@@ -423,7 +423,7 @@ function MemberRow({
             Edit
           </Link>
           <Link
-            href={`/dashboard/workplan/${member.id}`}
+            href={`/dashboard/workplan/${member.id}?from=roster`}
             className="text-xs text-gray-500 hover:underline"
           >
             Work Plan
