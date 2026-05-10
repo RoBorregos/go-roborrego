@@ -29,7 +29,7 @@ export function RosterClient() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<
     "ACTIVE" | "INACTIVE" | "ALUMNI" | undefined
-  >("ACTIVE");
+  >(() => (sessionStorage.getItem("roster_status") as "ACTIVE" | "INACTIVE" | "ALUMNI") || "ACTIVE");
   const [panel, setPanel] = useState<Panel>(null);
   const [sortByWebId, setSortByWebId] = useState(true);
 
@@ -135,11 +135,12 @@ export function RosterClient() {
         />
         <select
           value={statusFilter ?? ""}
-          onChange={(e) =>
-            setStatusFilter(
-              e.target.value ? (e.target.value as typeof statusFilter) : undefined,
-            )
-          }
+          onChange={(e) => {
+            const val = e.target.value ? (e.target.value as "ACTIVE" | "INACTIVE" | "ALUMNI") : undefined;
+            setStatusFilter(val);
+            if (val) sessionStorage.setItem("roster_status", val);
+            else sessionStorage.removeItem("roster_status");
+          }}
           className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="">All statuses</option>
