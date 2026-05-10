@@ -9,9 +9,13 @@ export default async function MemberProgressPage({
 }) {
   const session = await auth();
   if (!session?.user) redirect("/api/auth/signin");
-  if (session.user.role !== "ADMIN") redirect("/dashboard");
 
   const { memberId } = await params;
 
-  return <MemberProgressClient memberId={memberId} />;
+  return (
+    <MemberProgressClient
+      memberId={memberId}
+      isAdmin={session.user.role === "ADMIN"}
+    />
+  );
 }
