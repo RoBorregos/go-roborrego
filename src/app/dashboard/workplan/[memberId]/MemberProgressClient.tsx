@@ -6,7 +6,14 @@ import Link from "next/link";
 import { api } from "~/trpc/react";
 import { CompletionBadge } from "../_components/WorkPlanClient";
 
-export function MemberProgressClient({ memberId }: { memberId: string }) {
+export function MemberProgressClient({
+  memberId,
+  isAdmin,
+}: {
+  memberId: string;
+  isAdmin: boolean;
+}) {
+  const utils = api.useUtils();
   const { data: member } = api.member.getById.useQuery({ id: memberId });
   const { data: semesters } = api.workPlan.getSemesters.useQuery();
   const { data: activeSemester } = api.workPlan.getActiveSemester.useQuery();
@@ -28,6 +35,20 @@ export function MemberProgressClient({ memberId }: { memberId: string }) {
       { enabled: !!semesterId },
     );
 
+  const toggleInterest = api.workPlan.adminToggleInterest.useMutation({
+    onSuccess: () => {
+      void utils.workPlan.getMemberActivities.invalidate();
+      void utils.workPlan.getMemberSummary.invalidate();
+    },
+  });
+
+  const toggleCompletion = api.workPlan.adminToggleCompletion.useMutation({
+    onSuccess: () => {
+      void utils.workPlan.getMemberActivities.invalidate();
+      void utils.workPlan.getMemberSummary.invalidate();
+    },
+  });
+
   const mandatory = activities?.filter((a) => a.isMandatory) ?? [];
   const optional = activities?.filter((a) => !a.isMandatory) ?? [];
 
@@ -36,10 +57,10 @@ export function MemberProgressClient({ memberId }: { memberId: string }) {
       {/* Back + header */}
       <div className="mb-6">
         <Link
-          href="/dashboard/admin/members"
+          href="/dashboard/workplan"
           className="text-xs text-gray-400 hover:text-gray-600 mb-2 inline-block"
         >
-          ← Roster
+          ← Work Plan
         </Link>
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
@@ -104,12 +125,31 @@ export function MemberProgressClient({ memberId }: { memberId: string }) {
       ) : (
         <div className="space-y-6">
           {mandatory.length > 0 && (
-            <ActivitySection title="Mandatory" activities={mandatory} />
+            <ActivitySection
+              title="Mandatory"
+              activities={mandatory}
+              isAdmin={isAdmin}
+              memberId={memberId}
+              onToggleInterest={(activityId) =>
+                toggleInterest.mutate({ userId: memberId, activityId })
+              }
+              onToggleCompletion={(activityId) =>
+                toggleCompletion.mutate({ userId: memberId, activityId })
+              }
+            />
           )}
           {optional.length > 0 && (
             <ActivitySection
               title={mandatory.length > 0 ? "Optional" : "All Activities"}
               activities={optional}
+              isAdmin={isAdmin}
+              memberId={memberId}
+              onToggleInterest={(activityId) =>
+                toggleInterest.mutate({ userId: memberId, activityId })
+              }
+              onToggleCompletion={(activityId) =>
+                toggleCompletion.mutate({ userId: memberId, activityId })
+              }
             />
           )}
         </div>
@@ -137,9 +177,17 @@ type Activity = {
 function ActivitySection({
   title,
   activities,
+  isAdmin,
+  memberId: _memberId,
+  onToggleInterest,
+  onToggleCompletion,
 }: {
   title: string;
   activities: Activity[];
+  isAdmin: boolean;
+  memberId: string;
+  onToggleInterest: (activityId: string) => void;
+  onToggleCompletion: (activityId: string) => void;
 }) {
   return (
     <div>
@@ -148,15 +196,32 @@ function ActivitySection({
       </h2>
       <div className="space-y-3">
         {activities.map((a) => (
-          <ActivityRow key={a.id} activity={a} />
+          <ActivityRow
+            key={a.id}
+            activity={a}
+            isAdmin={isAdmin}
+            onToggleInterest={() => onToggleInterest(a.id)}
+            onToggleCompletion={() => onToggleCompletion(a.id)}
+          />
         ))}
       </div>
     </div>
   );
 }
 
-function ActivityRow({ activity }: { activity: Activity }) {
+function ActivityRow({
+  activity,
+  isAdmin,
+  onToggleInterest,
+  onToggleCompletion,
+}: {
+  activity: Activity;
+  isAdmin: boolean;
+  onToggleInterest: () => void;
+  onToggleCompletion: () => void;
+}) {
   const [expanded, setExpanded] = useState(false);
+  const isApproved = activity.completion?.status === "APPROVED";
 
   return (
     <div
@@ -203,15 +268,43 @@ function ActivityRow({ activity }: { activity: Activity }) {
           )}
         </div>
 
-        {/* Expand toggle — only if there's a submission to show */}
-        {activity.completion && (
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="text-xs text-gray-400 hover:text-gray-600 shrink-0"
-          >
-            {expanded ? "Hide" : "Details"}
-          </button>
-        )}
+        {/* Right-side actions */}
+        <div className="flex items-center gap-2 shrink-0">
+          {isAdmin && (
+            <>
+              <button
+                onClick={onToggleInterest}
+                title={activity.isInterested ? "Remove interest" : "Mark as interested"}
+                className={`text-xs px-2 py-1 rounded border transition-colors ${
+                  activity.isInterested
+                    ? "bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100"
+                    : "bg-gray-50 text-gray-400 border-gray-200 hover:bg-gray-100"
+                }`}
+              >
+                {activity.isInterested ? "★ Interested" : "☆ Interest"}
+              </button>
+              <button
+                onClick={onToggleCompletion}
+                title={isApproved ? "Remove completion" : "Mark as completed"}
+                className={`text-xs px-2 py-1 rounded border transition-colors ${
+                  isApproved
+                    ? "bg-green-50 text-green-600 border-green-200 hover:bg-green-100"
+                    : "bg-gray-50 text-gray-400 border-gray-200 hover:bg-gray-100"
+                }`}
+              >
+                {isApproved ? "✓ Done" : "○ Mark done"}
+              </button>
+            </>
+          )}
+          {activity.completion && (
+            <button
+              onClick={() => setExpanded(!expanded)}
+              className="text-xs text-gray-400 hover:text-gray-600"
+            >
+              {expanded ? "Hide" : "Details"}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Expanded submission detail */}

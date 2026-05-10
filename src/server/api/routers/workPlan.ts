@@ -4,6 +4,7 @@ import { z } from "zod";
 import {
   adminProcedure,
   createTRPCRouter,
+  memberProcedure,
   protectedProcedure,
 } from "~/server/api/trpc";
 
@@ -200,7 +201,10 @@ export const workPlanRouter = createTRPCRouter({
       z.object({
         id: z.string(),
         status: z.enum(["APPROVED", "REJECTED"]),
-        adminNote: z.string().optional().transform((v) => v !== "" ? v : undefined),
+        adminNote: z
+          .string()
+          .optional()
+          .transform((v) => (v !== "" ? v : undefined)),
       }),
     )
     .mutation(({ ctx, input }) => {
@@ -261,9 +265,64 @@ export const workPlanRouter = createTRPCRouter({
 
   // ─── My work plan summary ────────────────────────────────────────────────────
 
-  // ─── Admin: view any member's progress ──────────────────────────────────────
+  // ─── Admin: set member interest / completion ────────────────────────────────
 
-  getMemberActivities: adminProcedure
+  adminToggleInterest: adminProcedure
+    .input(z.object({ userId: z.string(), activityId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const existing = await ctx.db.workPlanInterest.findUnique({
+        where: {
+          userId_activityId: {
+            userId: input.userId,
+            activityId: input.activityId,
+          },
+        },
+      });
+      if (existing) {
+        return ctx.db.workPlanInterest.delete({
+          where: {
+            userId_activityId: {
+              userId: input.userId,
+              activityId: input.activityId,
+            },
+          },
+        });
+      }
+      return ctx.db.workPlanInterest.create({
+        data: { userId: input.userId, activityId: input.activityId },
+      });
+    }),
+
+  adminToggleCompletion: adminProcedure
+    .input(z.object({ userId: z.string(), activityId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const existing = await ctx.db.workPlanCompletion.findFirst({
+        where: {
+          userId: input.userId,
+          activityId: input.activityId,
+          status: "APPROVED",
+        },
+      });
+      if (existing) {
+        return ctx.db.workPlanCompletion.delete({ where: { id: existing.id } });
+      }
+      // Remove any non-approved completion first so upsert stays clean
+      await ctx.db.workPlanCompletion.deleteMany({
+        where: { userId: input.userId, activityId: input.activityId },
+      });
+      return ctx.db.workPlanCompletion.create({
+        data: {
+          userId: input.userId,
+          activityId: input.activityId,
+          note: "Marked as completed by admin",
+          status: "APPROVED",
+        },
+      });
+    }),
+
+  // ─── View any member's progress (all authenticated users) ───────────────────
+
+  getMemberActivities: memberProcedure
     .input(z.object({ semesterId: z.string(), userId: z.string() }))
     .query(async ({ ctx, input }) => {
       const activities = await ctx.db.workPlanActivity.findMany({
@@ -272,12 +331,23 @@ export const workPlanRouter = createTRPCRouter({
       });
       const [interests, completions] = await Promise.all([
         ctx.db.workPlanInterest.findMany({
-          where: { userId: input.userId, activity: { semesterId: input.semesterId } },
+          where: {
+            userId: input.userId,
+            activity: { semesterId: input.semesterId },
+          },
           select: { activityId: true },
         }),
         ctx.db.workPlanCompletion.findMany({
-          where: { userId: input.userId, activity: { semesterId: input.semesterId } },
-          select: { activityId: true, status: true, note: true, adminNote: true },
+          where: {
+            userId: input.userId,
+            activity: { semesterId: input.semesterId },
+          },
+          select: {
+            activityId: true,
+            status: true,
+            note: true,
+            adminNote: true,
+          },
         }),
       ]);
       const interestSet = new Set(interests.map((i) => i.activityId));
@@ -289,16 +359,22 @@ export const workPlanRouter = createTRPCRouter({
       }));
     }),
 
-  getMemberSummary: adminProcedure
+  getMemberSummary: memberProcedure
     .input(z.object({ semesterId: z.string(), userId: z.string() }))
     .query(async ({ ctx, input }) => {
       const [interests, completions, allActivities] = await Promise.all([
         ctx.db.workPlanInterest.findMany({
-          where: { userId: input.userId, activity: { semesterId: input.semesterId } },
+          where: {
+            userId: input.userId,
+            activity: { semesterId: input.semesterId },
+          },
           include: { activity: true },
         }),
         ctx.db.workPlanCompletion.findMany({
-          where: { userId: input.userId, activity: { semesterId: input.semesterId } },
+          where: {
+            userId: input.userId,
+            activity: { semesterId: input.semesterId },
+          },
           include: { activity: true },
         }),
         ctx.db.workPlanActivity.findMany({
@@ -308,7 +384,10 @@ export const workPlanRouter = createTRPCRouter({
       const approvedPoints = completions
         .filter((c) => c.status === "APPROVED")
         .reduce((sum, c) => sum + c.activity.points, 0);
-      const tentativePoints = interests.reduce((sum, i) => sum + i.activity.points, 0);
+      const tentativePoints = interests.reduce(
+        (sum, i) => sum + i.activity.points,
+        0,
+      );
       const mandatoryActivities = allActivities.filter((a) => a.isMandatory);
       const completedMandatoryIds = new Set(
         completions

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { api } from "~/trpc/react";
 
 export function LeaderboardTab({ semesterId }: { semesterId: string }) {
@@ -26,7 +27,10 @@ export function LeaderboardTab({ semesterId }: { semesterId: string }) {
                 {entry.rank === 1 ? "🥇" : entry.rank === 2 ? "🥈" : entry.rank === 3 ? "🥉" : `#${entry.rank}`}
               </td>
               <td className="px-4 py-3">
-                <div className="flex items-center gap-2">
+                <Link
+                  href={`/dashboard/workplan/${entry.user.id}`}
+                  className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+                >
                   {entry.user.image ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -41,8 +45,8 @@ export function LeaderboardTab({ semesterId }: { semesterId: string }) {
                       </span>
                     </div>
                   )}
-                  <span className="text-gray-900">{entry.user.name}</span>
-                </div>
+                  <span className="text-gray-900 hover:text-blue-600">{entry.user.name}</span>
+                </Link>
               </td>
               <td className="px-4 py-3 text-right font-bold text-blue-700">
                 {entry.points}

@@ -3,13 +3,17 @@ import { adminProcedure, createTRPCRouter, memberProcedure, protectedProcedure }
 
 export const sayingRouter = createTRPCRouter({
   // All approved + visible sayings (for dashboard display)
-  listApproved: protectedProcedure.query(({ ctx }) =>
-    ctx.db.saying.findMany({
+  listApproved: protectedProcedure.query(async ({ ctx }) => {
+    const sayings = await ctx.db.saying.findMany({
       where: { status: "APPROVED", isVisible: true },
       select: { id: true, text: true, explanation: true, date: true, isSerious: true },
-      orderBy: { date: "desc" },
-    }),
-  ),
+    });
+    for (let i = sayings.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [sayings[i], sayings[j]] = [sayings[j]!, sayings[i]!];
+    }
+    return sayings;
+  }),
 
   // Submit a new saying (members+)
   submit: memberProcedure

@@ -127,8 +127,14 @@ export default async function MemberProfilePage({
             )}
           </div>
 
-          {(isOwnProfile || isAdmin) && (
-            <div className="pt-2 border-t border-gray-100">
+          <div className="pt-2 border-t border-gray-100 flex flex-wrap gap-3">
+            <Link
+              href={`/dashboard/workplan/${id}`}
+              className="inline-block text-sm border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              View Work Plan
+            </Link>
+            {(isOwnProfile || isAdmin) && (
               <Link
                 href={
                   isOwnProfile
@@ -139,8 +145,8 @@ export default async function MemberProfilePage({
               >
                 Edit Profile
               </Link>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>
