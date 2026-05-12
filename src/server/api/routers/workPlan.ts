@@ -407,6 +407,54 @@ export const workPlanRouter = createTRPCRouter({
       };
     }),
 
+  getAdminMemberStats: adminProcedure
+    .input(z.object({ semesterId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const [members, completions, interests] = await Promise.all([
+        ctx.db.user.findMany({
+          select: { id: true, name: true, image: true, status: true, role: true },
+          orderBy: { name: "asc" },
+        }),
+        ctx.db.workPlanCompletion.findMany({
+          where: {
+            status: "APPROVED",
+            activity: { semesterId: input.semesterId },
+          },
+          select: { userId: true, activity: { select: { points: true } } },
+        }),
+        ctx.db.workPlanInterest.findMany({
+          where: { activity: { semesterId: input.semesterId } },
+          select: { userId: true, activity: { select: { points: true } } },
+        }),
+      ]);
+
+      const totalMap = new Map<string, number>();
+      for (const c of completions) {
+        totalMap.set(
+          c.userId,
+          (totalMap.get(c.userId) ?? 0) + c.activity.points,
+        );
+      }
+      const tentativeMap = new Map<string, number>();
+      for (const i of interests) {
+        tentativeMap.set(
+          i.userId,
+          (tentativeMap.get(i.userId) ?? 0) + i.activity.points,
+        );
+      }
+
+      return members.map((m) => {
+        const totalPoints = totalMap.get(m.id) ?? 0;
+        const tentativePoints = tentativeMap.get(m.id) ?? 0;
+        return {
+          user: m,
+          totalPoints,
+          tentativePoints,
+          difference: totalPoints - tentativePoints,
+        };
+      });
+    }),
+
   getMySummary: protectedProcedure
     .input(z.object({ semesterId: z.string() }))
     .query(async ({ ctx, input }) => {

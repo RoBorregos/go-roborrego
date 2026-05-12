@@ -5,11 +5,12 @@ import { useEffect, useState } from "react";
 import { api } from "~/trpc/react";
 import { ActivitiesTab } from "./ActivitiesTab";
 import { AdminActivitiesTab } from "./AdminActivitiesTab";
+import { AdminMembersTab } from "./AdminMembersTab";
 import { AdminReviewTab } from "./AdminReviewTab";
 import { AdminSemestersTab } from "./AdminSemestersTab";
 import { LeaderboardTab } from "./LeaderboardTab";
 
-const VALID_TABS = ["activities", "leaderboard", "manage", "review", "semesters"] as const;
+const VALID_TABS = ["activities", "leaderboard", "manage", "review", "semesters", "members"] as const;
 type Tab = (typeof VALID_TABS)[number];
 
 const STORAGE_TAB = "workplan_tab";
@@ -61,6 +62,7 @@ export function WorkPlanClient({
     { key: "manage", label: "Manage Activities" },
     { key: "review", label: "Review Submissions" },
     { key: "semesters", label: "Semesters" },
+    { key: "members", label: "Members" },
   ];
 
   return (
@@ -134,6 +136,9 @@ export function WorkPlanClient({
             <AdminReviewTab semesterId={semesterId} />
           )}
           {isAdmin && tab === "semesters" && <AdminSemestersTab />}
+          {isAdmin && tab === "members" && semesterId && (
+            <AdminMembersTab semesterId={semesterId} />
+          )}
         </>
       )}
     </div>
