@@ -4,6 +4,7 @@ import { attendanceRouter } from "~/server/api/routers/attendance";
 import { memberRouter } from "~/server/api/routers/member";
 import { projectRouter } from "~/server/api/routers/project";
 import { sayingRouter } from "~/server/api/routers/saying";
+import { webProjectRouter } from "~/server/api/routers/webProject";
 import { workPlanRouter } from "~/server/api/routers/workPlan";
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 
@@ -20,6 +21,7 @@ export const appRouter = createTRPCRouter({
   attendance: attendanceRouter,
   project: projectRouter,
   saying: sayingRouter,
+  webProject: webProjectRouter,
 });
 
 // export type definition of API

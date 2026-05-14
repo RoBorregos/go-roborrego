@@ -473,3 +473,27 @@ model TaskAttachment {
 
     @@index([taskId])
 }
+
+// ─── Web Projects ─────────────────────────────────────────────────────────────
+
+model WebProject {
+    id          String   @id @default(cuid())
+    name        String
+    description String
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    links WebProjectLink[]
+}
+
+model WebProjectLink {
+    id          String  @id @default(cuid())
+    projectId   String
+    url         String
+    description String?
+    order       Int     @default(0)
+
+    project WebProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+    @@index([projectId])
+}

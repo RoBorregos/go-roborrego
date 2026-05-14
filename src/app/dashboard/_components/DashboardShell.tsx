@@ -66,6 +66,7 @@ export function DashboardShell({
               <NavLink href="/dashboard/admin">Admin</NavLink>
             </>
           )}
+          <NavLink href="/dashboard/web-projects">Web Projects</NavLink>
           <NavLink href="/dashboard/support">Report Issue</NavLink>
           <NavLink href="/dashboard/onboarding">Getting Started</NavLink>
         </nav>
