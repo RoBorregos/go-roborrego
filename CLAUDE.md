@@ -4,6 +4,13 @@ Developer reference for AI assistants and contributors. Covers architecture deci
 
 ---
 
+## Instructions for Claude
+
+- **After every implementation**, run `npm run typecheck` to confirm the build is clean. Do not report a task as done if it fails.
+- **After any significant change** (new feature, new model, new router, new page, changed convention), update `CLAUDE.md` and the project memory file to reflect what changed.
+
+---
+
 ## Stack
 
 | Layer | Tech |
@@ -29,7 +36,7 @@ src/
       mcp/              # HTTP MCP endpoint (Bearer token auth)
       upload/           # Signed upload URL handler (Supabase)
     dashboard/
-      _components/      # Shared dashboard components (UserMenu)
+      _components/      # Shared dashboard components (DashboardShell, UserMenu)
       admin/
         members/        # Roster management
         profile-approvals/  # Approve member profile edits
@@ -39,8 +46,10 @@ src/
       profile/
         edit/           # Profile edit (changes go through approval)
       projects/
-        [id]/           # Project board, tasks, members
+        [id]/           # Project board, tasks, members, Miro tab
+      web-projects/     # External web project links directory
       workplan/         # Work plan activities, leaderboard
+        [memberId]/     # Individual member progress view
       support/          # GitHub issue reporter
   lib/
     supabase.ts         # Supabase client (anon key)
@@ -125,6 +134,39 @@ app/dashboard/workplan/_components/ActivitiesTab.tsx
 
 Shared dashboard components live in `app/dashboard/_components/`.
 
+### Searchable Combobox Pattern
+
+When a `<select>` needs to be searchable, use an input + dropdown list instead. The pattern used throughout:
+
+```tsx
+const [search, setSearch] = useState("");
+const [selectedId, setSelectedId] = useState("");
+const [open, setOpen] = useState(false);
+
+// Filter available items by search query
+const filtered = items.filter(item =>
+  item.name?.toLowerCase().includes(search.toLowerCase()) ||
+  item.email?.toLowerCase().includes(search.toLowerCase())
+);
+
+// On blur, delay close so onMouseDown on list items fires first
+onBlur={() => setTimeout(() => setOpen(false), 150)}
+
+// On item select
+function selectItem(id, name, email) {
+  setSelectedId(id);
+  setSearch(name ?? email ?? "");
+  setOpen(false);
+}
+```
+
+Each dropdown row shows name (bold) + email (gray, smaller). Used in: workplan reviewer picker, project member picker.
+
+### Tab Persistence (Per-Feature)
+
+- **Workplan:** tab + semester stored in `sessionStorage` under `workplan_tab` / `workplan_semester`
+- **Projects:** tab stored per-project in `sessionStorage` under `project_tab_<projectId>`; first visit defaults to `"overview"`
+
 ---
 
 ## Auth
@@ -171,6 +213,8 @@ Claude Desktop config:
   }
 }
 ```
+
+**Available tools:** `list_members`, `list_projects`, `get_project`, `list_meetings`, `get_attendance_report`, `get_workplan_leaderboard`, `get_active_semester`, `register_member`, `update_member`, `create_meeting`, `create_task`, `list_semesters`, `create_semester`, `set_active_semester`, `list_activities`, `create_activity`, `update_activity`, `get_pending_completions`, `review_completion`, `get_member_workplan_summary`
 
 ### HTTP MCP endpoint (`POST /api/mcp`)
 
@@ -244,6 +288,10 @@ To use a server action (e.g. `signOut`) inside a client component, define it inl
 ({ action }: { action: () => Promise<void> }) => <form action={action}>…</form>
 ```
 
+### Miro Board Embedding
+
+The `miroBoard` field on `Project` stores an embed URL (from Miro Share → Embed → Copy link). Rendered as a full-height `<iframe>` in the Miro tab. Managers/admins can set/change/remove it via `project.update`.
+
 ---
 
 ## Database Schema Summary
@@ -257,16 +305,20 @@ Key models and their purpose:
 | `ApiKey` | Per-user API key for HTTP MCP access (hashed, 3h TTL) |
 | `Semester` | Work plan semester (one active at a time) |
 | `WorkPlanActivity` | Activity within a semester (points, mandatory flag) |
+| `WorkPlanActivityReviewer` | Users designated to review submissions for a specific activity |
 | `WorkPlanInterest` | Member ↔ activity interest (many-to-many) |
-| `WorkPlanCompletion` | Submitted completion awaiting admin approval |
+| `WorkPlanCompletion` | Submitted completion awaiting admin/reviewer approval |
 | `Meeting` | Team meeting with QR check-in token, optional project link |
 | `Attendance` | Member check-in record per meeting |
 | `MeetingFeedback` | Anonymous or named feedback per meeting |
-| `Project` | Team project (can be private) |
+| `Project` | Team project (can be private); has `miroBoard` embed URL |
+| `ProjectLink` | Named URL links attached to a project (visible in Overview tab) |
 | `ProjectMember` | Member ↔ project role (PROJECT_MEMBER / PROJECT_MANAGER) |
 | `Task` | Task within a project (Kanban board) |
 | `TaskAssignee` | Member ↔ task assignment |
 | `TaskComment` | Comment on a task |
+| `WebProject` | External RoBorregos web project entry (name + description) |
+| `WebProjectLink` | URL with optional description, belonging to a WebProject |
 | `Account`, `Session`, `VerificationToken` | NextAuth internals — do not modify |
 
 ### Roles & Status Enums
@@ -293,6 +345,13 @@ enum AttendanceMethod  { QR_CODE  MANUAL  SELF }
 
 ADMIN users always hold `PROJECT_MANAGER` role on any project they join — enforced in `addMember` and blocked in `updateMemberRole`. Users cannot change their own project role.
 
+### Work plan reviewer flow
+
+1. Admin assigns reviewer(s) to an activity via the "Reviewers" panel in Manage Activities.
+2. Reviewer sees a "Review Submissions" tab in the Work Plan page (non-admins only see that tab, not the full admin set).
+3. `getPendingCompletions` filters by reviewer's assigned activities for non-admins.
+4. `reviewCompletion` verifies the caller is an admin OR a reviewer for that specific activity before allowing approve/reject.
+
 ### Profile edit approval flow
 
 1. Member submits profile changes → `ProfileEdit` created with `PENDING` status. `User` fields unchanged.
@@ -300,6 +359,21 @@ ADMIN users always hold `PROJECT_MANAGER` role on any project they join — enfo
 3. On approval → proposed non-null fields are copied to `User`. On rejection → only status updated.
 4. Submitting again while a pending edit exists replaces the old pending edit.
 5. `image` (avatar) bypasses approval — applied directly to `User`.
+
+---
+
+## tRPC Router Map
+
+| Router | Key procedures |
+|---|---|
+| `member` | `getDirectory`, `getById`, `update`, `updateRole`, `updateStatus` |
+| `project` | `getAll`, `getById`, `create`, `update`, `updateLinks`, `addMember`, `removeMember`, `updateMemberRole` |
+| `workPlan` | `getActivities`, `getLeaderboard`, `submitCompletion`, `getPendingCompletions`, `reviewCompletion`, `getActivityReviewers`, `addActivityReviewer`, `removeActivityReviewer` |
+| `attendance` | `getMeetings`, `createMeeting`, `checkIn`, `getAttendanceReport` |
+| `webProject` | `getAll`, `create`, `update`, `delete` |
+| `admin` | Admin-only bulk operations |
+| `apiKey` | `generate`, `revoke` |
+| `saying` | Sayings feature |
 
 ---
 
@@ -317,6 +391,16 @@ npm run db:push
 
 # Start dev server (exposed on Tailscale / all interfaces)
 npm run dev    # or: ./dev.sh
+```
+
+### Useful scripts
+
+```bash
+npm run typecheck      # tsc --noEmit (fastest type check)
+npm run check          # lint + typecheck
+npm run db:push        # push schema changes + regenerate client
+npm run db:studio      # open Prisma Studio (DB browser)
+npm run mcp            # start stdio MCP server
 ```
 
 ### Environment Variables
