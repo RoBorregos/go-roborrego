@@ -356,6 +356,7 @@ model Project {
     startDate   DateTime?
     endDate     DateTime?
     githubRepo  String?
+    miroBoard   String?
     createdBy   String
     createdAt   DateTime      @default(now())
     updatedAt   DateTime      @updatedAt
@@ -364,8 +365,21 @@ model Project {
     members  ProjectMember[]
     tasks    Task[]
     meetings Meeting[]
+    links    ProjectLink[]
 
     @@index([status])
+}
+
+model ProjectLink {
+    id        String  @id @default(cuid())
+    projectId String
+    name      String
+    url       String
+    order     Int     @default(0)
+
+    project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+    @@index([projectId])
 }
 
 model ProjectMember {

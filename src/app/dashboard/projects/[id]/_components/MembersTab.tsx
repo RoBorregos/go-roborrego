@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { api, type RouterOutputs } from "~/trpc/react";
 
 type Project = RouterOutputs["project"]["getById"];
@@ -44,10 +44,8 @@ export function MembersTab({
       {showAdd && (
         <AddMemberPanel
           projectId={project.id}
-          onDone={() => {
-            setShowAdd(false);
-            invalidate();
-          }}
+          onAdded={invalidate}
+          onClose={() => setShowAdd(false)}
         />
       )}
 
@@ -150,17 +148,42 @@ function MemberRow({
 
 function AddMemberPanel({
   projectId,
-  onDone,
+  onAdded,
+  onClose,
 }: {
   projectId: string;
-  onDone: () => void;
+  onAdded: () => void;
+  onClose: () => void;
 }) {
   const [selectedUserId, setSelectedUserId] = useState("");
+  const [search, setSearch] = useState("");
+  const [open, setOpen] = useState(false);
   const [role, setRole] = useState<"PROJECT_MEMBER" | "PROJECT_MANAGER">("PROJECT_MEMBER");
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const { data: available } = api.project.getAvailableMembers.useQuery({ projectId });
+  const addMember = api.project.addMember.useMutation({
+    onSuccess: () => {
+      onAdded();
+      setSelectedUserId("");
+      setSearch("");
+      setRole("PROJECT_MEMBER");
+    },
+  });
 
-  const addMember = api.project.addMember.useMutation({ onSuccess: onDone });
+  const filtered = (available ?? []).filter((u) => {
+    const q = search.toLowerCase();
+    return (
+      u.name?.toLowerCase().includes(q) ??
+      u.email?.toLowerCase().includes(q)
+    );
+  });
+
+  function selectUser(id: string, name: string | null, email: string | null) {
+    setSelectedUserId(id);
+    setSearch(name ?? email ?? "");
+    setOpen(false);
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -172,21 +195,37 @@ function AddMemberPanel({
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
       <h3 className="font-medium text-gray-900 mb-3 text-sm">Add Member</h3>
       <form onSubmit={handleSubmit} className="flex flex-wrap gap-3 items-end">
-        <div>
+        <div className="flex-1 min-w-48">
           <label className="block text-xs font-medium text-gray-600 mb-1">Member</label>
-          <select
-            required
-            value={selectedUserId}
-            onChange={(e) => setSelectedUserId(e.target.value)}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white min-w-48"
-          >
-            <option value="">Select a member…</option>
-            {available?.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name ?? u.email}{u.subTeam ? ` (${u.subTeam})` : ""}
-              </option>
-            ))}
-          </select>
+          <div ref={containerRef} className="relative">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setSelectedUserId(""); setOpen(true); }}
+              onFocus={() => setOpen(true)}
+              onBlur={() => setTimeout(() => setOpen(false), 150)}
+              placeholder="Search by name or email…"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            />
+            {open && filtered.length > 0 && (
+              <ul className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                {filtered.map((u) => (
+                  <li key={u.id}>
+                    <button
+                      type="button"
+                      onMouseDown={() => selectUser(u.id, u.name, u.email)}
+                      className="w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors"
+                    >
+                      <span className="block text-sm font-medium text-gray-900">
+                        {u.name ?? "—"}{u.subTeam ? <span className="ml-1 font-normal text-gray-400">({u.subTeam})</span> : null}
+                      </span>
+                      <span className="block text-xs text-gray-400">{u.email}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Role</label>
@@ -209,13 +248,16 @@ function AddMemberPanel({
           </button>
           <button
             type="button"
-            onClick={onDone}
+            onClick={onClose}
             className="px-3 py-2 text-sm text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
           >
             Cancel
           </button>
         </div>
       </form>
+      {addMember.error && (
+        <p className="text-xs text-red-600 mt-2">{addMember.error.message}</p>
+      )}
     </div>
   );
 }

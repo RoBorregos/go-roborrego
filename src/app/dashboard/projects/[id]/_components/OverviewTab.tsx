@@ -4,6 +4,7 @@ import { useState } from "react";
 import { api, type RouterOutputs } from "~/trpc/react";
 
 type Project = RouterOutputs["project"]["getById"];
+type LinkDraft = { name: string; url: string };
 
 export function OverviewTab({
   project,
@@ -187,6 +188,9 @@ export function OverviewTab({
         />
       </div>
 
+      {/* Links */}
+      <LinksSection project={project} isManager={isManager} />
+
       {/* Members preview */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
         <h2 className="font-semibold text-gray-900 mb-3">Team</h2>
@@ -214,6 +218,124 @@ export function OverviewTab({
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+function LinksSection({ project, isManager }: { project: Project; isManager: boolean }) {
+  const utils = api.useUtils();
+  const [editing, setEditing] = useState(false);
+  const [drafts, setDrafts] = useState<LinkDraft[]>([]);
+
+  const updateLinks = api.project.updateLinks.useMutation({
+    onSuccess: () => {
+      void utils.project.getById.invalidate({ id: project.id });
+      setEditing(false);
+    },
+  });
+
+  function openEdit() {
+    setDrafts(
+      project.links.length > 0
+        ? project.links.map((l) => ({ name: l.name, url: l.url }))
+        : [{ name: "", url: "" }],
+    );
+    setEditing(true);
+  }
+
+  function setDraft(i: number, key: "name" | "url", value: string) {
+    setDrafts((prev) => prev.map((d, idx) => (idx === i ? { ...d, [key]: value } : d)));
+  }
+
+  function save() {
+    const links = drafts.filter((d) => d.name.trim() && d.url.trim());
+    updateLinks.mutate({ projectId: project.id, links });
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="font-semibold text-gray-900">Links</h2>
+        {isManager && !editing && (
+          <button onClick={openEdit} className="text-xs text-blue-600 hover:underline">
+            Edit
+          </button>
+        )}
+      </div>
+
+      {editing ? (
+        <div className="space-y-3">
+          <div className="space-y-2">
+            {drafts.map((d, i) => (
+              <div key={i} className="flex gap-2 items-center">
+                <input
+                  value={d.name}
+                  onChange={(e) => setDraft(i, "name", e.target.value)}
+                  placeholder="Name"
+                  className="w-32 flex-shrink-0 rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <input
+                  value={d.url}
+                  onChange={(e) => setDraft(i, "url", e.target.value)}
+                  placeholder="https://…"
+                  className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                  onClick={() => setDrafts((prev) => prev.filter((_, idx) => idx !== i))}
+                  className="text-gray-400 hover:text-red-500 transition-colors text-lg leading-none"
+                  aria-label="Remove"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+          <button
+            onClick={() => setDrafts((prev) => [...prev, { name: "", url: "" }])}
+            className="text-xs text-blue-600 hover:text-blue-800 transition-colors"
+          >
+            + Add link
+          </button>
+          {updateLinks.error && (
+            <p className="text-xs text-red-600">{updateLinks.error.message}</p>
+          )}
+          <div className="flex gap-2 pt-1">
+            <button
+              onClick={save}
+              disabled={updateLinks.isPending}
+              className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            >
+              {updateLinks.isPending ? "Saving…" : "Save"}
+            </button>
+            <button
+              onClick={() => setEditing(false)}
+              className="px-4 py-2 text-sm text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : project.links.length > 0 ? (
+        <ul className="space-y-2">
+          {project.links.map((l) => (
+            <li key={l.id} className="flex items-center gap-2 text-sm">
+              <span className="text-gray-500 font-medium w-32 flex-shrink-0 truncate">{l.name}</span>
+              <a
+                href={l.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:underline truncate"
+              >
+                {l.url}
+              </a>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-gray-400 italic">
+          No links yet.{isManager ? " Click Edit to add some." : ""}
+        </p>
+      )}
     </div>
   );
 }

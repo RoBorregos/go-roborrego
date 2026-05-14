@@ -78,6 +78,7 @@ export const projectRouter = createTRPCRouter({
             },
             orderBy: { addedAt: "asc" },
           },
+          links: { orderBy: { order: "asc" } },
           _count: { select: { tasks: true } },
         },
       });
@@ -135,6 +136,7 @@ export const projectRouter = createTRPCRouter({
         startDate: z.date().optional(),
         endDate: z.date().optional(),
         githubRepo: z.string().url().optional().or(z.literal("")),
+        miroBoard: z.string().url().optional().or(z.literal("")),
         isPrivate: z.boolean().optional(),
       }),
     )
@@ -152,7 +154,52 @@ export const projectRouter = createTRPCRouter({
       }
       return ctx.db.project.update({
         where: { id },
-        data: { ...data, githubRepo: data.githubRepo },
+        data: {
+          ...data,
+          githubRepo: data.githubRepo,
+          miroBoard: data.miroBoard ?? null,
+        },
+      });
+    }),
+
+  // ─── Links ─────────────────────────────────────────────────────────────────
+
+  updateLinks: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        links: z.array(
+          z.object({
+            name: z.string().min(1),
+            url: z.string().url("Must be a valid URL"),
+          }),
+        ),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.session.user.role !== "ADMIN") {
+        const m = await ctx.db.projectMember.findUnique({
+          where: {
+            projectId_userId: {
+              projectId: input.projectId,
+              userId: ctx.session.user.id,
+            },
+          },
+          select: { role: true },
+        });
+        if (m?.role !== "PROJECT_MANAGER")
+          throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      await ctx.db.projectLink.deleteMany({
+        where: { projectId: input.projectId },
+      });
+      await ctx.db.projectLink.createMany({
+        data: input.links.map((l, i) => ({
+          projectId: input.projectId,
+          name: l.name,
+          url: l.url,
+          order: i,
+        })),
       });
     }),
 
