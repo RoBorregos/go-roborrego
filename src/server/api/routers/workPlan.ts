@@ -178,16 +178,27 @@ export const workPlanRouter = createTRPCRouter({
 
   // ─── Admin: review completions ──────────────────────────────────────────────
 
-  getPendingCompletions: adminProcedure
+  getPendingCompletions: protectedProcedure
     .input(z.object({ semesterId: z.string().optional() }))
-    .query(({ ctx, input }) => {
+    .query(async ({ ctx, input }) => {
+      const userId = ctx.session.user.id;
+      const isAdmin = ctx.session.user.role === "ADMIN";
+
+      const where = isAdmin
+        ? {
+            status: "PENDING" as const,
+            ...(input.semesterId && { activity: { semesterId: input.semesterId } }),
+          }
+        : {
+            status: "PENDING" as const,
+            activity: {
+              reviewers: { some: { userId } },
+              ...(input.semesterId && { semesterId: input.semesterId }),
+            },
+          };
+
       return ctx.db.workPlanCompletion.findMany({
-        where: {
-          status: "PENDING",
-          ...(input.semesterId && {
-            activity: { semesterId: input.semesterId },
-          }),
-        },
+        where,
         include: {
           user: { select: { id: true, name: true, email: true, image: true } },
           activity: { select: { id: true, name: true, points: true } },
@@ -196,7 +207,7 @@ export const workPlanRouter = createTRPCRouter({
       });
     }),
 
-  reviewCompletion: adminProcedure
+  reviewCompletion: protectedProcedure
     .input(
       z.object({
         id: z.string(),
@@ -207,12 +218,69 @@ export const workPlanRouter = createTRPCRouter({
           .transform((v) => (v !== "" ? v : undefined)),
       }),
     )
-    .mutation(({ ctx, input }) => {
+    .mutation(async ({ ctx, input }) => {
+      const userId = ctx.session.user.id;
+      const isAdmin = ctx.session.user.role === "ADMIN";
+
+      if (!isAdmin) {
+        const completion = await ctx.db.workPlanCompletion.findUnique({
+          where: { id: input.id },
+          select: { activityId: true },
+        });
+        if (!completion) throw new TRPCError({ code: "NOT_FOUND" });
+        const isReviewer = await ctx.db.workPlanActivityReviewer.findUnique({
+          where: {
+            activityId_userId: { activityId: completion.activityId, userId },
+          },
+        });
+        if (!isReviewer) throw new TRPCError({ code: "FORBIDDEN" });
+      }
+
       return ctx.db.workPlanCompletion.update({
         where: { id: input.id },
         data: { status: input.status, adminNote: input.adminNote },
       });
     }),
+
+  // ─── Admin: manage activity reviewers ───────────────────────────────────────
+
+  getActivityReviewers: adminProcedure
+    .input(z.object({ activityId: z.string() }))
+    .query(({ ctx, input }) => {
+      return ctx.db.workPlanActivityReviewer.findMany({
+        where: { activityId: input.activityId },
+        include: {
+          user: { select: { id: true, name: true, email: true, image: true } },
+        },
+        orderBy: { createdAt: "asc" },
+      });
+    }),
+
+  addActivityReviewer: adminProcedure
+    .input(z.object({ activityId: z.string(), userId: z.string() }))
+    .mutation(({ ctx, input }) => {
+      return ctx.db.workPlanActivityReviewer.create({ data: input });
+    }),
+
+  removeActivityReviewer: adminProcedure
+    .input(z.object({ activityId: z.string(), userId: z.string() }))
+    .mutation(({ ctx, input }) => {
+      return ctx.db.workPlanActivityReviewer.delete({
+        where: {
+          activityId_userId: {
+            activityId: input.activityId,
+            userId: input.userId,
+          },
+        },
+      });
+    }),
+
+  isReviewer: protectedProcedure.query(async ({ ctx }) => {
+    const count = await ctx.db.workPlanActivityReviewer.count({
+      where: { userId: ctx.session.user.id },
+    });
+    return count > 0;
+  }),
 
   // ─── Leaderboard ────────────────────────────────────────────────────────────
 

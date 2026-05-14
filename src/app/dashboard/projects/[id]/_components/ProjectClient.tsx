@@ -79,7 +79,7 @@ export function ProjectClient({
 
         {/* Tabs */}
         <div className="flex gap-1 mb-6 border-b border-gray-200">
-          {(["board", "overview", "members"] as const).map((t) => (
+          {(["overview", "board", "members"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}

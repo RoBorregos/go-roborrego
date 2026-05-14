@@ -18,9 +18,11 @@ const STORAGE_SEMESTER = "workplan_semester";
 
 export function WorkPlanClient({
   isAdmin,
+  isReviewer,
   userId,
 }: {
   isAdmin: boolean;
+  isReviewer: boolean;
   userId: string;
 }) {
   const { data: semesters } = api.workPlan.getSemesters.useQuery();
@@ -102,10 +104,15 @@ export function WorkPlanClient({
             {t.label}
           </TabBtn>
         ))}
-        {isAdmin && (
+        {(isAdmin || isReviewer) && (
           <>
             <span className="border-l border-gray-200 mx-1" />
-            {adminTabs.map((t) => (
+            {isReviewer && !isAdmin && (
+              <TabBtn key="review" active={tab === "review"} onClick={() => handleTabChange("review")}>
+                Review Submissions
+              </TabBtn>
+            )}
+            {isAdmin && adminTabs.map((t) => (
               <TabBtn key={t.key} active={tab === t.key} onClick={() => handleTabChange(t.key)}>
                 {t.label}
               </TabBtn>
@@ -132,7 +139,7 @@ export function WorkPlanClient({
           {isAdmin && tab === "manage" && semesterId && (
             <AdminActivitiesTab semesterId={semesterId} semesterName={currentSemester?.name ?? ""} />
           )}
-          {isAdmin && tab === "review" && (
+          {(isAdmin || isReviewer) && tab === "review" && (
             <AdminReviewTab semesterId={semesterId} />
           )}
           {isAdmin && tab === "semesters" && <AdminSemestersTab />}

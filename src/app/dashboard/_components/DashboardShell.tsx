@@ -107,10 +107,16 @@ export function DashboardShell({
 }
 
 function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
+  const pathname = usePathname();
+  const isActive = pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
   return (
     <Link
       href={href}
-      className="block px-3 py-2 rounded-md text-sm font-medium text-blue-100 hover:bg-white/10 hover:text-white transition-colors"
+      className={`block px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+        isActive
+          ? "bg-white/20 text-white"
+          : "text-blue-100 hover:bg-white/10 hover:text-white"
+      }`}
     >
       {children}
     </Link>
