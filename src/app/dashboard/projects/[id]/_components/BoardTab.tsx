@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -13,13 +13,15 @@ import {
 import { useDroppable, useDraggable } from "@dnd-kit/core";
 
 import { api, type RouterOutputs } from "~/trpc/react";
+import { areaColor } from "./areaColors";
 
 type Task = RouterOutputs["project"]["getTasks"][0];
-type TaskStatus = "TODO" | "IN_PROGRESS" | "IN_REVIEW" | "DONE";
+type TaskStatus = "TODO" | "IN_PROGRESS" | "BLOCKED" | "IN_REVIEW" | "DONE";
 
 const COLUMNS: { id: TaskStatus; label: string; color: string }[] = [
   { id: "TODO", label: "To Do", color: "bg-gray-100" },
   { id: "IN_PROGRESS", label: "In Progress", color: "bg-blue-50" },
+  { id: "BLOCKED", label: "Blocked", color: "bg-red-50" },
   { id: "IN_REVIEW", label: "In Review", color: "bg-yellow-50" },
   { id: "DONE", label: "Done", color: "bg-green-50" },
 ];
@@ -46,8 +48,12 @@ export function BoardTab({
 }) {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [addingToColumn, setAddingToColumn] = useState<TaskStatus | null>(null);
+  const [areaFilter, setAreaFilter] = useState<string[]>([]);
+  const [personFilter, setPersonFilter] = useState<string | null>(null);
 
   const { data: tasks } = api.project.getTasks.useQuery({ projectId });
+  const { data: areas } = api.project.getAreas.useQuery({ projectId });
+  const { data: members } = api.project.getProjectMembers.useQuery({ projectId });
   const utils = api.useUtils();
 
   const updateTask = api.project.updateTask.useMutation({
@@ -83,11 +89,36 @@ export function BoardTab({
     const task = tasks?.find((t) => t.id === active.id);
     if (task && task.status !== newStatus) {
       updateTask.mutate({ id: task.id, status: newStatus });
+      // Blocking is only useful with a reason — open the panel on the empty field
+      if (newStatus === "BLOCKED") onSelectTask(task.id);
     }
   }
 
+  const isFiltered = areaFilter.length > 0 || personFilter !== null;
+
+  // An area filter matches a task tagged with that area OR blocked waiting on it.
+  const filtered = useMemo(() => {
+    if (!tasks || !isFiltered) return tasks ?? [];
+    return tasks.filter((t) => {
+      if (personFilter && !t.assignees.some((a) => a.user.id === personFilter))
+        return false;
+      if (areaFilter.length === 0) return true;
+      return (
+        t.areas.some((a) => areaFilter.includes(a.areaId)) ||
+        (t.blockedByAreaId !== null && areaFilter.includes(t.blockedByAreaId))
+      );
+    });
+  }, [tasks, areaFilter, personFilter, isFiltered]);
+
+  /// True when a task surfaced only because it is blocking a filtered area.
+  const isBlockingYou = (task: Task) =>
+    areaFilter.length > 0 &&
+    task.blockedByAreaId !== null &&
+    areaFilter.includes(task.blockedByAreaId) &&
+    !task.areas.some((a) => areaFilter.includes(a.areaId));
+
   const tasksByStatus = (status: TaskStatus) =>
-    tasks?.filter((t) => t.status === status) ?? [];
+    filtered.filter((t) => t.status === status);
 
   return (
     <DndContext
@@ -95,6 +126,64 @@ export function BoardTab({
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-3">
+        {(areas ?? []).map((area) => {
+          const active = areaFilter.includes(area.id);
+          return (
+            <button
+              key={area.id}
+              onClick={() =>
+                setAreaFilter((prev) =>
+                  prev.includes(area.id)
+                    ? prev.filter((a) => a !== area.id)
+                    : [...prev, area.id],
+                )
+              }
+              className={`px-2.5 py-1 text-xs rounded-lg border font-medium transition-colors ${
+                active
+                  ? "bg-blue-600 text-white border-blue-600"
+                  : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+              }`}
+            >
+              <span
+                className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 align-middle ${active ? "bg-white/80" : areaColor(area.color).dot}`}
+              />
+              {area.name}
+            </button>
+          );
+        })}
+
+        <select
+          value={personFilter ?? ""}
+          onChange={(e) => setPersonFilter(e.target.value || null)}
+          className="text-xs rounded-lg border border-gray-300 px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+        >
+          <option value="">Anyone</option>
+          {(members ?? []).map((m) => (
+            <option key={m.userId} value={m.userId}>
+              {m.user.name ?? m.user.email}
+            </option>
+          ))}
+        </select>
+
+        {isFiltered && (
+          <>
+            <span className="text-xs text-gray-500">
+              {filtered.length} of {tasks?.length ?? 0} tasks
+            </span>
+            <button
+              onClick={() => {
+                setAreaFilter([]);
+                setPersonFilter(null);
+              }}
+              className="text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 px-2 py-1 rounded transition-colors"
+            >
+              ✕ Clear
+            </button>
+          </>
+        )}
+      </div>
+
       <div className="flex gap-3 overflow-x-auto pb-4">
         {COLUMNS.map((col) => (
           <Column
@@ -108,6 +197,7 @@ export function BoardTab({
             onStartAdd={() => setAddingToColumn(col.id)}
             onDoneAdd={() => setAddingToColumn(null)}
             projectId={projectId}
+            isBlockingYou={isBlockingYou}
           />
         ))}
       </div>
@@ -128,6 +218,7 @@ function Column({
   onStartAdd,
   onDoneAdd,
   projectId,
+  isBlockingYou,
 }: {
   column: (typeof COLUMNS)[0];
   tasks: Task[];
@@ -138,6 +229,7 @@ function Column({
   onStartAdd: () => void;
   onDoneAdd: () => void;
   projectId: string;
+  isBlockingYou: (task: Task) => boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
 
@@ -161,6 +253,7 @@ function Column({
             key={task.id}
             task={task}
             isSelected={selectedTaskId === task.id}
+            isBlockingYou={isBlockingYou(task)}
             onClick={() =>
               onSelectTask(selectedTaskId === task.id ? null : task.id)
             }
@@ -189,10 +282,12 @@ function Column({
 function DraggableTaskCard({
   task,
   isSelected,
+  isBlockingYou,
   onClick,
 }: {
   task: Task;
   isSelected: boolean;
+  isBlockingYou: boolean;
   onClick: () => void;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -206,7 +301,12 @@ function DraggableTaskCard({
       {...listeners}
       className={isDragging ? "opacity-40" : ""}
     >
-      <TaskCard task={task} isSelected={isSelected} onClick={onClick} />
+      <TaskCard
+        task={task}
+        isSelected={isSelected}
+        isBlockingYou={isBlockingYou}
+        onClick={onClick}
+      />
     </div>
   );
 }
@@ -215,17 +315,19 @@ function TaskCard({
   task,
   isSelected,
   isDragging,
+  isBlockingYou,
   onClick,
 }: {
   task: Task;
   isSelected?: boolean;
   isDragging?: boolean;
+  isBlockingYou?: boolean;
   onClick?: () => void;
 }) {
   return (
     <div
       onClick={onClick}
-      className={`bg-white rounded-lg border p-3 cursor-pointer select-none shadow-sm transition-all ${
+      className={`bg-white rounded-lg border p-3 cursor-pointer select-none shadow-sm transition-all ${isBlockingYou ? "border-l-4 border-l-red-500" : ""} ${
         isDragging
           ? "shadow-lg rotate-1 border-blue-200"
           : isSelected
@@ -233,9 +335,32 @@ function TaskCard({
             : "border-gray-200 hover:border-blue-200 hover:shadow-md"
       }`}
     >
+      {isBlockingYou && (
+        <p className="text-[10px] font-semibold text-red-600 mb-1">⛔ blocking you</p>
+      )}
+
       <p className="text-sm text-gray-900 font-medium leading-snug mb-2">
         {task.title}
       </p>
+
+      {task.status === "BLOCKED" && (
+        <p className="text-[10px] text-red-600 mb-2 truncate" title={task.blockedReason ?? undefined}>
+          ⛔ {task.blockedByArea ? `waiting on ${task.blockedByArea.name}` : "blocked"}
+        </p>
+      )}
+
+      {task.areas.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-2">
+          {task.areas.map(({ area }) => (
+            <span
+              key={area.id}
+              className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${areaColor(area.color).chip}`}
+            >
+              {area.name}
+            </span>
+          ))}
+        </div>
+      )}
 
       <div className="flex items-center justify-between gap-1">
         <span

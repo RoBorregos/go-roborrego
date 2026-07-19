@@ -51,6 +51,7 @@ enum ProjectRole {
 enum TaskStatus {
     TODO
     IN_PROGRESS
+    BLOCKED
     IN_REVIEW
     DONE
 }
@@ -159,6 +160,7 @@ model User {
     // Project relations
     projectsCreated Project[]       @relation("ProjectCreator")
     projectMembers  ProjectMember[]
+    projectAreas    ProjectAreaMember[]
     tasksCreated     Task[]           @relation("TaskCreator")
     taskAssignments  TaskAssignee[]
     taskComments     TaskComment[]
@@ -408,8 +410,49 @@ model Project {
     tasks    Task[]
     meetings Meeting[]
     links    ProjectLink[]
+    areas    ProjectArea[]
 
     @@index([status])
+}
+
+/// A technical area within a project.
+model ProjectArea {
+    id        String   @id @default(cuid())
+    projectId String
+    name      String
+    color     String? // palette key — see areaColors.ts
+    order     Int      @default(0)
+
+    project      Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    members      ProjectAreaMember[]
+    tasks        TaskArea[]
+    blockedTasks Task[]              @relation("TaskBlockedByArea")
+
+    @@unique([projectId, name])
+    @@index([projectId])
+}
+
+model ProjectAreaMember {
+    areaId String
+    userId String
+    isLead Boolean @default(false) // "Area PM"
+
+    area ProjectArea @relation(fields: [areaId], references: [id], onDelete: Cascade)
+    user User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@id([areaId, userId])
+    @@index([userId])
+}
+
+model TaskArea {
+    taskId String
+    areaId String
+
+    task Task        @relation(fields: [taskId], references: [id], onDelete: Cascade)
+    area ProjectArea @relation(fields: [areaId], references: [id], onDelete: Cascade)
+
+    @@id([taskId, areaId])
+    @@index([areaId])
 }
 
 model ProjectLink {
@@ -451,12 +494,17 @@ model Task {
     createdBy   String
     createdAt   DateTime     @default(now())
     updatedAt   DateTime     @updatedAt
+    // Only meaningful while status is BLOCKED.
+    blockedReason   String?
+    blockedByAreaId String?
 
     project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
     creator   User           @relation("TaskCreator", fields: [createdBy], references: [id])
     assignees    TaskAssignee[]
     comments     TaskComment[]
     attachments  TaskAttachment[]
+    areas         TaskArea[]
+    blockedByArea ProjectArea? @relation("TaskBlockedByArea", fields: [blockedByAreaId], references: [id], onDelete: SetNull)
 
     @@index([projectId])
     @@index([status])

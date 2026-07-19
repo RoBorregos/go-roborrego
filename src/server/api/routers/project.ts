@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
+import type { PrismaClient } from "../../../../generated/prisma";
 import {
   createTRPCRouter,
   memberProcedure,
@@ -10,10 +11,41 @@ import { supabaseAdmin } from "~/lib/supabase-admin";
 
 // ─── Shared input schemas ────────────────────────────────────────────────────
 
-const taskStatusEnum = z.enum(["TODO", "IN_PROGRESS", "IN_REVIEW", "DONE"]);
+const taskStatusEnum = z.enum([
+  "TODO",
+  "IN_PROGRESS",
+  "BLOCKED",
+  "IN_REVIEW",
+  "DONE",
+]);
 const taskPriorityEnum = z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]);
 
-// ─── Auth helpers (inline — no separate helper fns to avoid type complexity) ─
+// ─── Auth helpers ────────────────────────────────────────────────────────────
+
+type Ctx = {
+  db: PrismaClient;
+  session: { user: { id: string; role: string } };
+};
+
+async function assertManager(ctx: Ctx, projectId: string) {
+  const { id: userId, role } = ctx.session.user;
+  if (role === "ADMIN") return;
+  const m = await ctx.db.projectMember.findUnique({
+    where: { projectId_userId: { projectId, userId } },
+    select: { role: true },
+  });
+  if (m?.role !== "PROJECT_MANAGER") throw new TRPCError({ code: "FORBIDDEN" });
+}
+
+/// Owning project of an area, or NOT_FOUND.
+async function areaProjectId(ctx: Ctx, id: string) {
+  const a = await ctx.db.projectArea.findUnique({
+    where: { id },
+    select: { projectId: true },
+  });
+  if (!a) throw new TRPCError({ code: "NOT_FOUND" });
+  return a.projectId;
+}
 
 export const projectRouter = createTRPCRouter({
   // ─── Projects ──────────────────────────────────────────────────────────────
@@ -217,6 +249,122 @@ export const projectRouter = createTRPCRouter({
       });
     }),
 
+  // ─── Areas ─────────────────────────────────────────────────────────────────
+
+  getAreas: protectedProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(({ ctx, input }) => {
+      const isAdmin = ctx.session.user.role === "ADMIN";
+      return ctx.db.projectArea.findMany({
+        where: {
+          projectId: input.projectId,
+          // Same private-project visibility rule as getTasks
+          ...(!isAdmin && {
+            OR: [
+              { project: { isPrivate: false } },
+              {
+                project: { members: { some: { userId: ctx.session.user.id } } },
+              },
+            ],
+          }),
+        },
+        include: {
+          members: {
+            include: {
+              user: { select: { id: true, name: true, image: true } },
+            },
+          },
+          _count: { select: { tasks: true } },
+        },
+        orderBy: [{ order: "asc" }, { name: "asc" }],
+      });
+    }),
+
+  createArea: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        name: z.string().min(1),
+        color: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await assertManager(ctx, input.projectId);
+      const count = await ctx.db.projectArea.count({
+        where: { projectId: input.projectId },
+      });
+      return ctx.db.projectArea.create({ data: { ...input, order: count } });
+    }),
+
+  updateArea: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        name: z.string().min(1).optional(),
+        color: z.string().optional(),
+        order: z.number().int().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { id, ...data } = input;
+      const projectId = await areaProjectId(ctx, id);
+      await assertManager(ctx, projectId);
+      return ctx.db.projectArea.update({ where: { id }, data });
+    }),
+
+  deleteArea: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const projectId = await areaProjectId(ctx, input.id);
+      await assertManager(ctx, projectId);
+      // TaskArea rows cascade; tasks themselves survive, just untagged.
+      return ctx.db.projectArea.delete({ where: { id: input.id } });
+    }),
+
+  /// Replaces the full set of areas a member belongs to within a project.
+  setMemberAreas: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        userId: z.string(),
+        areas: z.array(
+          z.object({ areaId: z.string(), isLead: z.boolean().default(false) }),
+        ),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await assertManager(ctx, input.projectId);
+      // Guard against being handed area ids belonging to another project
+      const owned = await ctx.db.projectArea.findMany({
+        where: {
+          projectId: input.projectId,
+          id: { in: input.areas.map((a) => a.areaId) },
+        },
+        select: { id: true },
+      });
+      const ownedIds = new Set(owned.map((a) => a.id));
+      const areas = input.areas.filter((a) => ownedIds.has(a.areaId));
+
+      return ctx.db.$transaction(async (tx) => {
+        await tx.projectAreaMember.deleteMany({
+          where: { userId: input.userId, area: { projectId: input.projectId } },
+        });
+        if (areas.length) {
+          await tx.projectAreaMember.createMany({
+            data: areas.map((a) => ({ ...a, userId: input.userId })),
+          });
+        }
+        // At most one Area PM per area — promoting demotes the previous holder
+        const leadAreaIds = areas.filter((a) => a.isLead).map((a) => a.areaId);
+        if (leadAreaIds.length) {
+          await tx.projectAreaMember.updateMany({
+            where: { areaId: { in: leadAreaIds }, userId: { not: input.userId } },
+            data: { isLead: false },
+          });
+        }
+      });
+    }),
+
   getProjectLabels: protectedProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ ctx, input }) => {
@@ -387,6 +535,8 @@ export const projectRouter = createTRPCRouter({
               user: { select: { id: true, name: true, image: true } },
             },
           },
+          areas: { include: { area: true } },
+          blockedByArea: true,
           _count: { select: { comments: true } },
         },
         orderBy: { createdAt: "asc" },
@@ -415,6 +565,8 @@ export const projectRouter = createTRPCRouter({
               user: { select: { id: true, name: true, image: true } },
             },
           },
+          areas: { include: { area: true } },
+          blockedByArea: true,
           comments: {
             include: {
               user: { select: { id: true, name: true, image: true } },
@@ -443,6 +595,9 @@ export const projectRouter = createTRPCRouter({
         dueDate: z.date().optional(),
         labels: z.array(z.string()).default([]),
         assigneeIds: z.array(z.string()).default([]),
+        areaIds: z.array(z.string()).default([]),
+        blockedReason: z.string().nullable().optional(),
+        blockedByAreaId: z.string().nullable().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -457,15 +612,23 @@ export const projectRouter = createTRPCRouter({
         });
         if (!m) throw new TRPCError({ code: "FORBIDDEN" });
       }
-      const { assigneeIds, ...data } = input;
+      const { assigneeIds, areaIds, ...data } = input;
       return ctx.db.task.create({
         data: {
           ...data,
+          // Blocked details are only meaningful in the BLOCKED column
+          ...(data.status !== "BLOCKED" && {
+            blockedReason: null,
+            blockedByAreaId: null,
+          }),
           createdBy: ctx.session.user.id,
           assignees: assigneeIds.length
             ? {
                 createMany: { data: assigneeIds.map((userId) => ({ userId })) },
               }
+            : undefined,
+          areas: areaIds.length
+            ? { createMany: { data: areaIds.map((areaId) => ({ areaId })) } }
             : undefined,
         },
       });
@@ -482,10 +645,13 @@ export const projectRouter = createTRPCRouter({
         dueDate: z.date().nullable().optional(),
         labels: z.array(z.string()).optional(),
         assigneeIds: z.array(z.string()).optional(),
+        areaIds: z.array(z.string()).optional(),
+        blockedReason: z.string().nullable().optional(),
+        blockedByAreaId: z.string().nullable().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const { id, assigneeIds, ...data } = input;
+      const { id, assigneeIds, areaIds, ...data } = input;
       const task = await ctx.db.task.findUnique({
         where: { id },
         select: { projectId: true },
@@ -508,12 +674,24 @@ export const projectRouter = createTRPCRouter({
         where: { id },
         data: {
           ...data,
+          // Moving a task out of BLOCKED clears the stale reason and target
+          ...(data.status !== undefined &&
+            data.status !== "BLOCKED" && {
+              blockedReason: null,
+              blockedByAreaId: null,
+            }),
           ...(assigneeIds !== undefined && {
             assignees: {
               deleteMany: {},
               createMany: {
                 data: assigneeIds.map((userId) => ({ userId })),
               },
+            },
+          }),
+          ...(areaIds !== undefined && {
+            areas: {
+              deleteMany: {},
+              createMany: { data: areaIds.map((areaId) => ({ areaId })) },
             },
           }),
         },

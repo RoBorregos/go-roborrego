@@ -314,6 +314,9 @@ Key models and their purpose:
 | `Project` | Team project (can be private); has `miroBoard` embed URL |
 | `ProjectLink` | Named URL links attached to a project (visible in Overview tab) |
 | `ProjectMember` | Member ↔ project role (PROJECT_MEMBER / PROJECT_MANAGER) |
+| `ProjectArea` | Technical area within a project — per-project, no global catalog |
+| `ProjectAreaMember` | Member ↔ area, with `isLead` ("Area PM") — **display only, not enforced** |
+| `TaskArea` | Task ↔ area tag (a task may carry several areas) |
 | `Task` | Task within a project (Kanban board) |
 | `TaskAssignee` | Member ↔ task assignment |
 | `TaskComment` | Comment on a task |
@@ -330,7 +333,7 @@ enum CompletionStatus  { PENDING  APPROVED  REJECTED }
 enum ProfileEditStatus { PENDING  APPROVED  REJECTED }
 enum ProjectStatus     { ACTIVE  COMPLETED  ARCHIVED }
 enum ProjectRole       { PROJECT_MEMBER  PROJECT_MANAGER }
-enum TaskStatus        { TODO  IN_PROGRESS  IN_REVIEW  DONE }
+enum TaskStatus        { TODO  IN_PROGRESS  BLOCKED  IN_REVIEW  DONE }
 enum TaskPriority      { LOW  MEDIUM  HIGH  URGENT }
 enum AttendanceMethod  { QR_CODE  MANUAL  SELF }
 ```
@@ -344,6 +347,15 @@ enum AttendanceMethod  { QR_CODE  MANUAL  SELF }
 ### Admin-only project roles
 
 ADMIN users always hold `PROJECT_MANAGER` role on any project they join — enforced in `addMember` and blocked in `updateMemberRole`. Users cannot change their own project role.
+
+### Project areas & blocked tasks
+
+Areas are **per-project** (`ProjectArea`, unique on `[projectId, name]`) — there is no team-wide catalog. A task can carry several areas; a member can belong to several.
+
+- `isLead` on `ProjectAreaMember` is the **"Area PM"** label. It grants **no** permissions and is checked nowhere on the server — any project member can still edit any task and set assignees. Do not add enforcement without asking.
+- Area colors come from the static map in `_components/areaColors.ts`. Tailwind v4 only emits classes it sees literally, so never build those class names by interpolation.
+- `BLOCKED` sits between `IN_PROGRESS` and `IN_REVIEW` and models cross-area dependencies. `blockedReason` / `blockedByAreaId` are **nulled out** by `createTask`/`updateTask` whenever status becomes anything else.
+- Board filters (area multi-select + person) fold into `tasksByStatus` in `BoardTab.tsx` — the single hook point feeding all five columns. Filtering by area X matches tasks **tagged** X *or* `blockedByAreaId === X`, so a lead also sees the work stalled on them (marked `⛔ blocking you`).
 
 ### Work plan reviewer flow
 
@@ -367,7 +379,7 @@ ADMIN users always hold `PROJECT_MANAGER` role on any project they join — enfo
 | Router | Key procedures |
 |---|---|
 | `member` | `getDirectory`, `getById`, `update`, `updateRole`, `updateStatus` |
-| `project` | `getAll`, `getById`, `create`, `update`, `updateLinks`, `addMember`, `removeMember`, `updateMemberRole` |
+| `project` | `getAll`, `getById`, `create`, `update`, `updateLinks`, `addMember`, `removeMember`, `updateMemberRole`, `getAreas`, `createArea`, `updateArea`, `deleteArea`, `setMemberAreas` |
 | `workPlan` | `getActivities`, `getLeaderboard`, `submitCompletion`, `getPendingCompletions`, `reviewCompletion`, `getActivityReviewers`, `addActivityReviewer`, `removeActivityReviewer` |
 | `attendance` | `getMeetings`, `createMeeting`, `checkIn`, `getAttendanceReport` |
 | `webProject` | `getAll`, `create`, `update`, `delete` |

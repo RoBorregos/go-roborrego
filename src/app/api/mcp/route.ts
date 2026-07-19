@@ -160,7 +160,7 @@ const TOOLS = [
         priority: { type: "string", enum: ["LOW", "MEDIUM", "HIGH", "URGENT"] },
         status: {
           type: "string",
-          enum: ["TODO", "IN_PROGRESS", "IN_REVIEW", "DONE"],
+          enum: ["TODO", "IN_PROGRESS", "BLOCKED", "IN_REVIEW", "DONE"],
         },
       },
     },
@@ -647,7 +647,12 @@ async function callTool(
           priority:
             (args.priority as "LOW" | "MEDIUM" | "HIGH" | "URGENT") ?? "MEDIUM",
           status:
-            (args.status as "TODO" | "IN_PROGRESS" | "IN_REVIEW" | "DONE") ??
+            (args.status as
+              | "TODO"
+              | "IN_PROGRESS"
+              | "BLOCKED"
+              | "IN_REVIEW"
+              | "DONE") ??
             "TODO",
           createdBy: user.id,
         },

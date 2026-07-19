@@ -2,9 +2,12 @@
 
 import { useRef, useState } from "react";
 import { api, type RouterOutputs } from "~/trpc/react";
+import { AREA_COLOR_KEYS, areaColor } from "./areaColors";
 
 type Project = RouterOutputs["project"]["getById"];
 type ProjectMember = Project["members"][0];
+type Area = RouterOutputs["project"]["getAreas"][0];
+type MemberArea = { area: Area; isLead: boolean };
 
 export function MembersTab({
   project,
@@ -16,20 +19,56 @@ export function MembersTab({
   currentUserId: string;
 }) {
   const [showAdd, setShowAdd] = useState(false);
+  const [areaFilter, setAreaFilter] = useState<string[]>([]);
   const utils = api.useUtils();
+
+  const { data: areas } = api.project.getAreas.useQuery({ projectId: project.id });
 
   function invalidate() {
     void utils.project.getById.invalidate({ id: project.id });
   }
 
+  function invalidateAreas() {
+    void utils.project.getAreas.invalidate({ projectId: project.id });
+    void utils.project.getTasks.invalidate({ projectId: project.id });
+  }
+
   const removeMember = api.project.removeMember.useMutation({ onSuccess: invalidate });
   const updateRole = api.project.updateMemberRole.useMutation({ onSuccess: invalidate });
+  const setMemberAreas = api.project.setMemberAreas.useMutation({ onSuccess: invalidateAreas });
+
+  // getAreas already carries each area's membership.
+  const areasByUser = new Map<string, MemberArea[]>();
+  for (const area of areas ?? []) {
+    for (const m of area.members) {
+      const list = areasByUser.get(m.userId) ?? [];
+      list.push({ area, isLead: m.isLead });
+      areasByUser.set(m.userId, list);
+    }
+  }
+
+  // Members matching any selected area
+  const shownMembers =
+    areaFilter.length === 0
+      ? project.members
+      : project.members.filter((m) =>
+          (areasByUser.get(m.userId) ?? []).some((a) => areaFilter.includes(a.area.id)),
+        );
 
   return (
     <div className="max-w-2xl space-y-4">
+      <AreasPanel
+        projectId={project.id}
+        areas={areas ?? []}
+        isManager={isManager}
+        onChanged={invalidateAreas}
+      />
+
       <div className="flex items-center justify-between">
         <h2 className="font-semibold text-gray-900">
-          {project.members.length} Member{project.members.length !== 1 ? "s" : ""}
+          {areaFilter.length > 0
+            ? `${shownMembers.length} of ${project.members.length} Members`
+            : `${project.members.length} Member${project.members.length !== 1 ? "s" : ""}`}
         </h2>
         {isManager && (
           <button
@@ -41,6 +80,44 @@ export function MembersTab({
         )}
       </div>
 
+      {(areas ?? []).length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {(areas ?? []).map((area) => {
+            const active = areaFilter.includes(area.id);
+            return (
+              <button
+                key={area.id}
+                onClick={() =>
+                  setAreaFilter((prev) =>
+                    prev.includes(area.id)
+                      ? prev.filter((a) => a !== area.id)
+                      : [...prev, area.id],
+                  )
+                }
+                className={`px-2.5 py-1 text-xs rounded-lg border font-medium transition-colors ${
+                  active
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                }`}
+              >
+                <span
+                  className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 align-middle ${active ? "bg-white/80" : areaColor(area.color).dot}`}
+                />
+                {area.name}
+              </button>
+            );
+          })}
+          {areaFilter.length > 0 && (
+            <button
+              onClick={() => setAreaFilter([])}
+              className="text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 px-2 py-1 rounded transition-colors"
+            >
+              ✕ Clear
+            </button>
+          )}
+        </div>
+      )}
+
       {showAdd && (
         <AddMemberPanel
           projectId={project.id}
@@ -50,12 +127,22 @@ export function MembersTab({
       )}
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm divide-y divide-gray-100">
-        {project.members.map((m) => (
+        {shownMembers.length === 0 && (
+          <p className="px-4 py-6 text-sm text-gray-400 text-center">
+            No members in the selected area{areaFilter.length !== 1 ? "s" : ""}.
+          </p>
+        )}
+        {shownMembers.map((m) => (
           <MemberRow
             key={m.id}
             member={m}
             isManager={isManager}
             isCurrentUser={m.userId === currentUserId}
+            allAreas={areas ?? []}
+            memberAreas={areasByUser.get(m.userId) ?? []}
+            onSetAreas={(next) =>
+              setMemberAreas.mutate({ projectId: project.id, userId: m.userId, areas: next })
+            }
             onRoleChange={(role) =>
               updateRole.mutate({ projectId: project.id, userId: m.userId, role })
             }
@@ -70,10 +157,110 @@ export function MembersTab({
   );
 }
 
+/// Manager-only CRUD over the project's areas.
+function AreasPanel({
+  projectId,
+  areas,
+  isManager,
+  onChanged,
+}: {
+  projectId: string;
+  areas: Area[];
+  isManager: boolean;
+  onChanged: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [color, setColor] = useState<string>(AREA_COLOR_KEYS[0]!);
+
+  const createArea = api.project.createArea.useMutation({
+    onSuccess: () => { onChanged(); setName(""); },
+  });
+  const deleteArea = api.project.deleteArea.useMutation({ onSuccess: onChanged });
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+      <div className="flex items-center justify-between">
+        <h2 className="font-semibold text-gray-900 text-sm">
+          Areas <span className="font-normal text-gray-400">({areas.length})</span>
+        </h2>
+        {isManager && (
+          <button onClick={() => setOpen(!open)} className="text-xs text-gray-500 hover:text-gray-700">
+            {open ? "Done" : "Manage"}
+          </button>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-1.5 mt-2">
+        {areas.map((a) => (
+          <span
+            key={a.id}
+            className={`text-xs font-medium px-2 py-0.5 rounded ${areaColor(a.color).chip}`}
+          >
+            {a.name} <span className="opacity-60">{a._count.tasks}</span>
+            {open && (
+              <button
+                onClick={() => {
+                  if (confirm(`Delete area "${a.name}"? Tasks keep existing, untagged.`))
+                    deleteArea.mutate({ id: a.id });
+                }}
+                className="ml-1 opacity-60 hover:opacity-100"
+                aria-label="Delete area"
+              >
+                ×
+              </button>
+            )}
+          </span>
+        ))}
+        {areas.length === 0 && (
+          <p className="text-xs text-gray-400">
+            No areas yet.
+          </p>
+        )}
+      </div>
+
+      {open && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (name.trim()) createArea.mutate({ projectId, name: name.trim(), color });
+          }}
+          className="flex items-center gap-2 mt-3"
+        >
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="New area name…"
+            className="flex-1 min-w-0 text-sm rounded border border-gray-300 px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
+          />
+          <select
+            value={color}
+            onChange={(e) => setColor(e.target.value)}
+            className="text-xs rounded border border-gray-300 px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+          >
+            {AREA_COLOR_KEYS.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <button
+            type="submit"
+            disabled={!name.trim() || createArea.isPending}
+            className="text-xs px-2.5 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          >
+            Add
+          </button>
+        </form>
+      )}
+      {createArea.error && <p className="text-xs text-red-600 mt-2">{createArea.error.message}</p>}
+    </div>
+  );
+}
+
 function MemberRow({
   member,
   isManager,
   isCurrentUser,
+  allAreas,
+  memberAreas,
+  onSetAreas,
   onRoleChange,
   onRemove,
   isSaving,
@@ -81,11 +268,22 @@ function MemberRow({
   member: ProjectMember;
   isManager: boolean;
   isCurrentUser: boolean;
+  allAreas: Area[];
+  memberAreas: MemberArea[];
+  onSetAreas: (areas: { areaId: string; isLead: boolean }[]) => void;
   onRoleChange: (role: "PROJECT_MEMBER" | "PROJECT_MANAGER") => void;
   onRemove: () => void;
   isSaving: boolean;
 }) {
+  const [editingAreas, setEditingAreas] = useState(false);
+  const current = new Map(memberAreas.map((m) => [m.area.id, m.isLead]));
+
+  function commit(next: Map<string, boolean>) {
+    onSetAreas([...next].map(([areaId, isLead]) => ({ areaId, isLead })));
+  }
+
   return (
+    <div>
     <div className="flex items-center gap-3 px-4 py-3">
       {member.user.image ? (
         // eslint-disable-next-line @next/next/no-img-element
@@ -114,6 +312,27 @@ function MemberRow({
         </span>
       )}
 
+      <div className="flex flex-wrap gap-1 justify-end shrink-0 max-w-56">
+        {memberAreas.map(({ area, isLead }) => (
+          <span
+            key={area.id}
+            className={`text-xs font-medium px-2 py-0.5 rounded ${areaColor(area.color).chip}`}
+            title={isLead ? `Area PM of ${area.name} — label only, grants no permissions` : area.name}
+          >
+            {isLead && "★ "}{area.name}
+          </span>
+        ))}
+        {isManager && allAreas.length > 0 && (
+          <button
+            onClick={() => setEditingAreas(!editingAreas)}
+            className="text-xs text-gray-400 hover:text-gray-600 px-1 transition-colors"
+            title="Edit areas"
+          >
+            {editingAreas ? "✕" : "＋"}
+          </button>
+        )}
+      </div>
+
       {isManager && !isCurrentUser && member.user.role !== "ADMIN" ? (
         <select
           value={member.role}
@@ -141,6 +360,59 @@ function MemberRow({
         >
           Remove
         </button>
+      )}
+    </div>
+
+      {editingAreas && (
+        <div className="px-4 pb-3">
+          <p className="text-xs text-gray-400 mb-1.5">
+            Click an area to join or leave it. Click the ★ to make this member the
+            area&apos;s PM.
+          </p>
+          <div className="flex flex-wrap gap-1.5 items-center">
+            {allAreas.map((a) => {
+              const joined = current.has(a.id);
+              const isLead = current.get(a.id) ?? false;
+              // Whoever currently holds this area's PM, if not this member
+              const otherLead = a.members.find((m) => m.isLead && m.userId !== member.userId);
+              return (
+                <span
+                  key={a.id}
+                  className={`text-xs font-medium px-2 py-0.5 rounded ${
+                    joined ? areaColor(a.color).chip : "bg-white text-gray-400 border border-gray-200"
+                  }`}
+                >
+                  <button
+                    onClick={() => {
+                      const next = new Map(current);
+                      if (joined) next.delete(a.id);
+                      else next.set(a.id, false);
+                      commit(next);
+                    }}
+                    title={joined ? `Leave ${a.name}` : `Join ${a.name}`}
+                  >
+                    {a.name}
+                  </button>
+                  {joined && (
+                    <button
+                      onClick={() => commit(new Map(current).set(a.id, !isLead))}
+                      className={`ml-1 ${isLead ? "" : "opacity-30"}`}
+                      title={
+                        isLead
+                          ? `Remove as PM of ${a.name}`
+                          : otherLead
+                            ? `Make PM of ${a.name} — replaces ${otherLead.user.name ?? "the current PM"}`
+                            : `Make PM of ${a.name}`
+                      }
+                    >
+                      ★
+                    </button>
+                  )}
+                </span>
+              );
+            })}
+          </div>
+        </div>
       )}
     </div>
   );
@@ -174,8 +446,8 @@ function AddMemberPanel({
   const filtered = (available ?? []).filter((u) => {
     const q = search.toLowerCase();
     return (
-      u.name?.toLowerCase().includes(q) ??
-      u.email?.toLowerCase().includes(q)
+      (u.name?.toLowerCase().includes(q) ?? false) ||
+      (u.email?.toLowerCase().includes(q) ?? false)
     );
   });
 

@@ -3,11 +3,12 @@
 import { useRef, useState } from "react";
 import { api, type RouterOutputs } from "~/trpc/react";
 import { useUpload } from "~/lib/useUpload";
+import { areaColor } from "./areaColors";
 
 type Task = NonNullable<RouterOutputs["project"]["getTask"]>;
 
 const PRIORITY_OPTIONS = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
-const STATUS_OPTIONS = ["TODO", "IN_PROGRESS", "IN_REVIEW", "DONE"] as const;
+const STATUS_OPTIONS = ["TODO", "IN_PROGRESS", "BLOCKED", "IN_REVIEW", "DONE"] as const;
 
 const PRIORITY_STYLES: Record<string, string> = {
   LOW: "bg-gray-100 text-gray-500 border-gray-200",
@@ -156,6 +157,15 @@ export function TaskPanel({
           )}
         </div>
 
+        {/* Blocked details — server clears these when status leaves BLOCKED */}
+        {task.status === "BLOCKED" && (
+          <BlockedSection
+            task={task}
+            isMember={isMember}
+            onUpdate={(patch) => updateTask.mutate({ id: task.id, ...patch })}
+          />
+        )}
+
         {/* Due date */}
         {isMember && (
           <div>
@@ -190,6 +200,13 @@ export function TaskPanel({
           task={task}
           isMember={isMember}
           onUpdate={(ids) => updateTask.mutate({ id: task.id, assigneeIds: ids })}
+        />
+
+        {/* Areas */}
+        <AreasEditor
+          task={task}
+          isMember={isMember}
+          onUpdate={(ids) => updateTask.mutate({ id: task.id, areaIds: ids })}
         />
 
         {/* Labels */}
@@ -425,6 +442,95 @@ function AttachmentsSection({
   );
 }
 
+function BlockedSection({
+  task,
+  isMember,
+  onUpdate,
+}: {
+  task: Task;
+  isMember: boolean;
+  onUpdate: (patch: { blockedReason?: string | null; blockedByAreaId?: string | null }) => void;
+}) {
+  const { data: areas } = api.project.getAreas.useQuery({ projectId: task.projectId });
+  // A task can't be waiting on an area it belongs to
+  const own = new Set(task.areas.map((a) => a.areaId));
+
+  return (
+    <div className="rounded-lg border border-red-200 bg-red-50 p-3 space-y-2">
+      <p className="text-xs font-semibold text-red-700">⛔ Blocked</p>
+      <select
+        disabled={!isMember}
+        value={task.blockedByAreaId ?? ""}
+        onChange={(e) => onUpdate({ blockedByAreaId: e.target.value || null })}
+        className="w-full text-xs rounded border border-red-200 bg-white px-2 py-1 focus:outline-none focus:ring-1 focus:ring-red-400"
+      >
+        <option value="">Not waiting on an area</option>
+        {(areas ?? []).filter((a) => !own.has(a.id)).map((a) => (
+          <option key={a.id} value={a.id}>Waiting on {a.name}</option>
+        ))}
+      </select>
+      <textarea
+        key={task.id}
+        readOnly={!isMember}
+        rows={2}
+        defaultValue={task.blockedReason ?? ""}
+        placeholder="Why is this blocked?"
+        onBlur={(e) => {
+          const next = e.target.value.trim();
+          if (next !== (task.blockedReason ?? "")) onUpdate({ blockedReason: next || null });
+        }}
+        className="w-full text-xs rounded border border-red-200 bg-white px-2 py-1 focus:outline-none focus:ring-1 focus:ring-red-400"
+      />
+    </div>
+  );
+}
+
+/// Areas are a small fixed per-project set, so toggle chips beat a typeahead.
+function AreasEditor({
+  task,
+  isMember,
+  onUpdate,
+}: {
+  task: Task;
+  isMember: boolean;
+  onUpdate: (ids: string[]) => void;
+}) {
+  const { data: areas } = api.project.getAreas.useQuery({ projectId: task.projectId });
+  const current = task.areas.map((a) => a.areaId);
+  const shown = isMember
+    ? (areas ?? [])
+    : (areas ?? []).filter((a) => current.includes(a.id));
+
+  if (shown.length === 0) return null;
+
+  return (
+    <div>
+      <p className="text-xs font-medium text-gray-500 mb-1.5">Areas</p>
+      <div className="flex flex-wrap gap-1.5">
+        {shown.map((a) => {
+          const on = current.includes(a.id);
+          return (
+            <button
+              key={a.id}
+              disabled={!isMember}
+              onClick={() =>
+                onUpdate(on ? current.filter((id) => id !== a.id) : [...current, a.id])
+              }
+              className={`text-xs font-medium px-2 py-0.5 rounded transition-colors ${
+                on
+                  ? areaColor(a.color).chip
+                  : "bg-white text-gray-400 border border-gray-200 hover:bg-gray-50"
+              }`}
+            >
+              {a.name}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function AssigneesEditor({
   task,
   isMember,
@@ -448,8 +554,8 @@ function AssigneesEditor({
   const available = (projectMembers ?? []).filter(
     (m) =>
       !assignedIds.has(m.userId) &&
-      (m.user.name?.toLowerCase().includes(search.toLowerCase()) ??
-        m.user.email?.toLowerCase().includes(search.toLowerCase())),
+      ((m.user.name?.toLowerCase().includes(search.toLowerCase()) ?? false) ||
+        (m.user.email?.toLowerCase().includes(search.toLowerCase()) ?? false)),
   );
 
   function addAssignee(userId: string) {
