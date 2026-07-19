@@ -355,7 +355,7 @@ Areas are **per-project** (`ProjectArea`, unique on `[projectId, name]`) — the
 - `isLead` on `ProjectAreaMember` is the **"Area PM"** label. It grants **no** permissions and is checked nowhere on the server — any project member can still edit any task and set assignees. Do not add enforcement without asking.
 - Area colors come from the static map in `_components/areaColors.ts`. Tailwind v4 only emits classes it sees literally, so never build those class names by interpolation.
 - `BLOCKED` sits between `IN_PROGRESS` and `IN_REVIEW` and models cross-area dependencies. `blockedReason` / `blockedByAreaId` are **nulled out** by `createTask`/`updateTask` whenever status becomes anything else.
-- Board filters (area multi-select + person) fold into `tasksByStatus` in `BoardTab.tsx` — the single hook point feeding all five columns. Filtering by area X matches tasks **tagged** X *or* `blockedByAreaId === X`, so a Vision lead also sees the work stalled on them (marked `⛔ blocking you`).
+- Board filters (area multi-select + person) fold into `tasksByStatus` in `BoardTab.tsx` — the single hook point feeding all five columns. Filtering by area X matches tasks **tagged** X *or* `blockedByAreaId === X`, so a lead also sees the work stalled on them (marked `⛔ blocking you`).
 
 ### Work plan reviewer flow
 

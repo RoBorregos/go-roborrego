@@ -214,7 +214,7 @@ function AreasPanel({
         ))}
         {areas.length === 0 && (
           <p className="text-xs text-gray-400">
-            No areas yet — split the project into tracks like HRI or Vision.
+            No areas yet.
           </p>
         )}
       </div>

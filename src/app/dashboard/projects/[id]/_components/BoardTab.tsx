@@ -96,8 +96,7 @@ export function BoardTab({
 
   const isFiltered = areaFilter.length > 0 || personFilter !== null;
 
-  // An area filter matches a task tagged with that area OR blocked waiting on
-  // it, so a Vision lead filtering to Vision also sees the work stalled on them.
+  // An area filter matches a task tagged with that area OR blocked waiting on it.
   const filtered = useMemo(() => {
     if (!tasks || !isFiltered) return tasks ?? [];
     return tasks.filter((t) => {
